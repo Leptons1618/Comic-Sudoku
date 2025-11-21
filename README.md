@@ -1,117 +1,114 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Comic Sudoku Solver
 
-# Run and deploy your AI Studio app
+**Comic Sudoku Solver** is a fun, doodle-themed web and mobile application that lets you solve, play, and generate Sudoku puzzles. It features a unique "hand-drawn" aesthetic and powerful AI capabilities to scan and solve puzzles instantly.
 
-This contains everything you need to run your app locally.
+## 🌟 Features
 
-View your app in AI Studio: https://ai.studio/apps/drive/1lMCMwqY5ypFRS6zRZv_oddur1sMQmZ8W
+*   **Scan Mode**:
+    *   **In-App Camera**: Real-time board detection using OpenCV.js. Automatically finds and crops the board.
+    *   **Image Upload**: Upload screenshots or photos from your gallery.
+    *   **Dual AI Engines**:
+        *   **Local ML**: Runs entirely on-device using Tesseract.js and OpenCV (Offline, Privacy-focused).
+        *   **Cloud AI**: Uses Google Gemini API for high-accuracy recognition (Requires API Key).
+*   **Edit Mode**: Manually input numbers from a newspaper or book to solve them.
+*   **Play Mode**: Generate endless Sudoku puzzles (4x4 Mini or 9x9 Standard) with varying difficulty.
+*   **Comic Aesthetic**: Custom hand-drawn UI components, icons, and fonts (`Patrick Hand`).
+*   **Mobile Ready**: Built with Capacitor for native Android deployment.
 
-## Run Locally
+## Tech Stack
 
-**Prerequisites:**  Node.js
+*   **Frontend**: React, TypeScript, Vite
+*   **Styling**: Tailwind CSS
+*   **Computer Vision**: OpenCV.js (Wasm)
+*   **OCR / ML**: Tesseract.js (Local), Google Gemini API (Cloud)
+*   **Mobile Runtime**: Capacitor (Android)
+*   **State Management**: React Hooks
 
+## Project Structure
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```
+/
+├── android/             # Native Android project files (Capacitor)
+├── src/
+│   ├── components/      # React UI components (Board, Camera, Modals, etc.)
+│   ├── services/        # Business logic & External services
+│   │   ├── audioService.ts    # Sound effects
+│   │   ├── geminiService.ts   # Google Gemini API integration
+│   │   ├── localMLService.ts  # OpenCV & Tesseract logic
+│   │   └── sudokuLogic.ts     # Sudoku solving & generation algorithms
+│   ├── App.tsx          # Main application entry & routing
+│   └── index.css        # Global styles & Tailwind directives
+├── public/              # Static assets
+└── capacitor.config.ts  # Capacitor configuration
+```
 
-## Build for Android
-
-To build this application for Android, we use [Capacitor](https://capacitorjs.com/). Follow these steps:
+## Getting Started
 
 ### Prerequisites
-- **Android Studio**: Download and install [Android Studio](https://developer.android.com/studio).
-- **Java Development Kit (JDK)**: Ensure you have a compatible JDK installed (usually included with Android Studio).
+*   Node.js (v18+)
+*   npm
 
-### Step-by-Step Guide
+### Installation
 
-1. **Install Capacitor Dependencies**
-   Install the necessary Capacitor packages:
-   ```bash
-   npm install @capacitor/core
-   npm install -D @capacitor/cli @capacitor/android
-   ```
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/yourusername/comic-sudoku.git
+    cd comic-sudoku
+    ```
 
-2. **Initialize Capacitor**
-   Initialize the Capacitor config. This sets up the project structure.
-   ```bash
-   npx cap init "Comic Sudoku Solver" com.comicsudoku.app --web-dir dist
-   ```
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
 
-3. **Add Android Platform**
-   Add the Android platform to your project:
-   ```bash
-   npx cap add android
-   ```
+3.  Run the development server:
+    ```bash
+    npm run dev
+    ```
+    Open `http://localhost:5173` in your browser.
 
-4. **Build the Web App**
-   Compile your React application into the `dist` folder:
-   ```bash
-   npm run build
-   ```
+## Building for Android
 
-5. **Sync with Android**
-   Copy the built web assets to the Android project:
-   ```bash
-   npx cap sync
-   ```
+This project uses **Capacitor** to build a native Android app.
 
-6. **Open in Android Studio**
-   Open the native Android project in Android Studio:
-   ```bash
-   npx cap open android
-   ```
+### Prerequisites
+*   **Android Studio**: Download and install [Android Studio](https://developer.android.com/studio).
+*   **Java Development Kit (JDK)**: Usually included with Android Studio.
 
-7. **Run the App**
-   - In Android Studio, wait for Gradle sync to finish.
-   - Connect an Android device or create an Emulator (AVD).
-   - Click the **Run** button (green play icon) to build and install the app on your device/emulator.
+### Build Steps
 
-   - Click the **Run** button (green play icon) to build and install the app on your device/emulator.
+1.  **Build the Web App**:
+    ```bash
+    npm run build
+    ```
 
-## Build APK without Android Studio (Cloud Build)
+2.  **Sync with Android**:
+    Copy the built web assets to the native Android project:
+    ```bash
+    npx cap sync
+    ```
 
-If you don't have Android Studio installed, the easiest way to build the APK is using **GitHub Actions**. We have set up a workflow that automatically builds the APK for you in the cloud.
+3.  **Open in Android Studio**:
+    ```bash
+    npx cap open android
+    ```
 
-1. **Push to GitHub**
-   Push your code to a GitHub repository.
+4.  **Run/Build**:
+    In Android Studio, wait for Gradle sync to finish, then click the **Run** button (green play icon) to deploy to an emulator or connected device.
 
-2. **Wait for Build**
-   Go to the **Actions** tab in your GitHub repository. You will see a workflow named "Build Android APK" running.
+### Cloud Build (GitHub Actions)
 
-3. **Download APK**
-   Once the workflow completes (green checkmark):
-   - Click on the workflow run.
-   - Scroll down to the **Artifacts** section.
-   - Click on **app-debug** to download the zip file.
-   - Extract the zip to find `app-debug.apk`.
+If you don't have Android Studio, you can use the included GitHub Actions workflow to build the APK automatically:
+1.  Push your code to GitHub.
+2.  Go to the **Actions** tab.
+3.  Wait for the "Build Android APK" workflow to complete.
+4.  Download the `app-debug.apk` from the **Artifacts** section.
 
-4. **Install on Device**
-   Transfer the file to your Android phone and install it.
+## Configuration
 
-## Build APK Locally (Advanced)
-If you have the Android SDK installed and want to build locally via command line:
+*   **Gemini API**: To use the Cloud AI feature, get an API key from [Google AI Studio](https://aistudio.google.com/) and enter it in the App Settings.
+*   **Local ML**: Enabled by default in Settings. Requires an initial internet connection to download `opencv.js` and Tesseract language data, then works offline.
 
-1. **Configure SDK Location**
-   Create `android/local.properties` and add: `sdk.dir=C:\\Path\\To\\Android\\Sdk`
+---
 
-2. **Build**
-   ```bash
-   cd android
-   ./gradlew assembleDebug
-   ```
-
-3. **Locate APK**
-   `android/app/build/outputs/apk/debug/app-debug.apk`
-
-### Updating the App
-
-### Updating the App
-Whenever you make changes to your React code:
-1. Rebuild the web app: `npm run build`
-2. Sync changes: `npx cap sync`
-3. Rebuild the APK: `cd android && ./gradlew assembleDebug`
+*Built with ❤️ and fun by Anish*
