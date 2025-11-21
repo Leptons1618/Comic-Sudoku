@@ -1,7 +1,21 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { SudokuGrid } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+let customApiKey: string | null = null;
+
+export const setCustomApiKey = (key: string) => {
+  customApiKey = key;
+};
+
+// Initialize lazily or safely
+const getAiClient = () => {
+  const apiKey = customApiKey || process.env.API_KEY;
+  if (!apiKey) {
+    console.error("Gemini API Key is missing!");
+    throw new Error("Gemini API Key is missing. Please check your configuration.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 const sudokuSchema: Schema = {
   type: Type.OBJECT,
@@ -23,7 +37,7 @@ const sudokuSchema: Schema = {
 
 export const extractSudokuFromImage = async (base64Image: string): Promise<SudokuGrid> => {
   try {
-    const response = await ai.models.generateContent({
+    const response = await getAiClient().models.generateContent({
       model: "gemini-2.5-flash",
       contents: {
         parts: [
