@@ -32,7 +32,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onCapture, onClose
                 }
             } catch (err) {
                 console.error("Camera error:", err);
-                setError("Could not access camera. Please check permissions.");
+                setError("Could not access camera. Ensure you are on HTTPS/localhost and have granted permissions.");
             }
         };
 
@@ -169,8 +169,8 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onCapture, onClose
                 <button
                     onClick={handleCapture}
                     className={`w-20 h-20 rounded-full border-[6px] flex items-center justify-center transition-all ${isBoardDetected
-                            ? 'border-green-400 bg-white/10 scale-110'
-                            : 'border-white bg-transparent'
+                        ? 'border-green-400 bg-white/10 scale-110'
+                        : 'border-white bg-transparent'
                         }`}
                 >
                     <div className={`w-16 h-16 rounded-full ${isBoardDetected ? 'bg-green-400' : 'bg-white'}`} />
