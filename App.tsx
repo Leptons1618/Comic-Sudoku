@@ -2,100 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { SudokuBoard } from './components/SudokuBoard';
 import { Loader } from './components/Loader';
 import { Modal } from './components/Modal';
+import { NumberKeyboard } from './components/NumberKeyboard';
+import { DoodleIcon } from './components/DoodleIcon';
 import { createEmptyBoard, solveSudoku, generateSudoku } from './services/sudokuLogic';
 import { extractSudokuFromImage, setCustomApiKey } from './services/geminiService';
-import { SudokuGrid, AppMode, GridSize } from './types';
+import { SudokuGrid, AppMode, GridSize, CellPosition } from './types';
 import { playSound, setMuted } from './services/audioService';
-
-// --- Doodle Icons Component ---
-export const DoodleIcon: React.FC<{ name: string; className?: string }> = ({ name, className = "w-6 h-6" }) => {
-  const strokes = "stroke-black stroke-2 fill-none strokeLinecap-round strokeLinejoin-round";
-
-  switch (name) {
-    case 'camera':
-      return (
-        <svg viewBox="0 0 24 24" className={`${className} ${strokes}`}>
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-          <circle cx="12" cy="13" r="4" />
-        </svg>
-      );
-    case 'gallery':
-      return (
-        <svg viewBox="0 0 24 24" className={`${className} ${strokes}`}>
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-          <circle cx="8.5" cy="8.5" r="1.5" />
-          <polyline points="21 15 16 10 5 21" />
-        </svg>
-      );
-    case 'pencil':
-      return (
-        <svg viewBox="0 0 24 24" className={`${className} ${strokes}`}>
-          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-        </svg>
-      );
-    case 'gamepad':
-      return (
-        <svg viewBox="0 0 24 24" className={`${className} ${strokes}`}>
-          <rect x="2" y="6" width="20" height="12" rx="2" />
-          <path d="M6 12h4m-2-2v4" />
-          <line x1="15" y1="11" x2="15" y2="11" strokeWidth="3" />
-          <line x1="18" y1="13" x2="18" y2="13" strokeWidth="3" />
-        </svg>
-      );
-    case 'hint':
-      return (
-        <svg viewBox="0 0 24 24" className={`${className} ${strokes}`}>
-          <path d="M9 18h6" />
-          <path d="M10 22h4" />
-          <path d="M12 2a7 7 0 0 0-7 7c0 2.386 1.194 4.49 3 5.758V18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-3.242C17.806 13.49 19 11.386 19 9a7 7 0 0 0-7-7z" />
-        </svg>
-      );
-    case 'check':
-      return (
-        <svg viewBox="0 0 24 24" className={`${className} ${strokes}`}>
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      );
-    case 'trash':
-      return (
-        <svg viewBox="0 0 24 24" className={`${className} ${strokes}`}>
-          <polyline points="3 6 5 6 21 6" />
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-        </svg>
-      );
-    case 'solve':
-      return (
-        <svg viewBox="0 0 24 24" className={`${className} ${strokes}`}>
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-        </svg>
-      );
-    case 'info':
-      return (
-        <svg viewBox="0 0 24 24" className={`${className} ${strokes}`}>
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="16" x2="12" y2="12"></line>
-          <line x1="12" y1="8" x2="12.01" y2="8"></line>
-        </svg>
-      );
-    case 'help':
-      return (
-        <svg viewBox="0 0 24 24" className={`${className} ${strokes}`}>
-          <circle cx="12" cy="12" r="10" />
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-      );
-    case 'settings':
-      return (
-        <svg viewBox="0 0 24 24" className={`${className} ${strokes}`}>
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-        </svg>
-      );
-    default:
-      return null;
-  }
-};
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.SCAN);
@@ -104,6 +16,7 @@ const App: React.FC = () => {
   const [grid, setGrid] = useState<SudokuGrid>(createEmptyBoard(9));
   const [initialGrid, setInitialGrid] = useState<SudokuGrid>(createEmptyBoard(9));
   const [solution, setSolution] = useState<SudokuGrid | null>(null);
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
 
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("Thinking...");
@@ -112,10 +25,17 @@ const App: React.FC = () => {
   const [showHelp, setShowHelp] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showGameConfig, setShowGameConfig] = useState(false);
 
   // Settings State
   const [isMutedState, setIsMutedState] = useState(false);
   const [apiKey, setApiKey] = useState("");
+  const [tempApiKey, setTempApiKey] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
+
+  const [selectedCell, setSelectedCell] = useState<CellPosition | null>(null);
+  const [hintCells, setHintCells] = useState<CellPosition[]>([]);
+  const [animatingHint, setAnimatingHint] = useState<CellPosition | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -129,6 +49,7 @@ const App: React.FC = () => {
     setMuted(savedMuted);
 
     setApiKey(savedKey);
+    setTempApiKey(savedKey);
     if (savedKey) setCustomApiKey(savedKey);
   }, []);
 
@@ -142,10 +63,17 @@ const App: React.FC = () => {
   };
 
   const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setApiKey(val);
-    setCustomApiKey(val);
-    localStorage.setItem('comic_sudoku_api_key', val);
+    setTempApiKey(e.target.value);
+    setSaveMessage("");
+  };
+
+  const saveSettings = () => {
+    setApiKey(tempApiKey);
+    setCustomApiKey(tempApiKey);
+    localStorage.setItem('comic_sudoku_api_key', tempApiKey);
+    setSaveMessage("Saved!");
+    playSound('success');
+    setTimeout(() => setSaveMessage(""), 2000);
   };
 
   // Reset functionality
@@ -157,6 +85,9 @@ const App: React.FC = () => {
     setInitialGrid(empty);
     setSolution(null);
     setStatusMessage("");
+    setSelectedCell(null);
+    setHintCells([]);
+    setAnimatingHint(null);
   };
 
   // Switch tabs handler
@@ -171,7 +102,16 @@ const App: React.FC = () => {
       setInitialGrid(empty);
       setSolution(null);
       setStatusMessage("");
+      setSelectedCell(null);
+      setHintCells([]);
+      setAnimatingHint(null);
     }
+  };
+
+  // --- Helpers ---
+  const showStatus = (msg: string, duration = 3000) => {
+    setStatusMessage(msg);
+    setTimeout(() => setStatusMessage(""), duration);
   };
 
   // --- Handlers for SCAN Mode ---
@@ -197,10 +137,12 @@ const App: React.FC = () => {
           setGrid(extractedGrid);
           setInitialGrid(extractedGrid);
           setSolution(null);
+          setHintCells([]);
+          setAnimatingHint(null);
           playSound('success');
         } catch (error) {
           console.error(error);
-          setStatusMessage("Could not identify a Sudoku. Try a clearer image.");
+          showStatus("Could not identify a Sudoku. Try a clearer image.");
           playSound('error');
         } finally {
           setLoading(false);
@@ -211,18 +153,73 @@ const App: React.FC = () => {
       reader.readAsDataURL(file);
     } catch (error) {
       setLoading(false);
-      setStatusMessage("Error reading file.");
+      showStatus("Error reading file.");
       playSound('error');
     }
   };
 
   // --- Handlers for PLAY/MANUAL Mode ---
 
-  const handleCellChange = (row: number, col: number, value: number) => {
-    if (initialGrid[row][col] !== 0) return;
+  const handleCellClick = (row: number, col: number) => {
+    setSelectedCell({ row, col });
+    playSound('click');
+  };
+
+  const handleNumberInput = (num: number) => {
+    if (!selectedCell) return;
+    const { row, col } = selectedCell;
+
+    // Check if cell is locked (initial grid)
+    if (initialGrid[row][col] !== 0) {
+      playSound('error');
+      return;
+    }
+
     const newGrid = grid.map(r => [...r]);
-    newGrid[row][col] = value;
+    newGrid[row][col] = num;
     setGrid(newGrid);
+    playSound('scribble');
+  };
+
+  const handleDelete = () => {
+    if (!selectedCell) return;
+    const { row, col } = selectedCell;
+    if (initialGrid[row][col] !== 0) return;
+
+    const newGrid = grid.map(r => [...r]);
+    newGrid[row][col] = 0;
+    setGrid(newGrid);
+    playSound('scribble');
+  };
+
+  const getDisabledNumbers = (): number[] => {
+    if (!selectedCell) return [];
+    const { row, col } = selectedCell;
+    const disabled: number[] = [];
+    const size = gridSize;
+    const boxSize = Math.sqrt(size);
+
+    // Check Row
+    for (let c = 0; c < size; c++) {
+      if (grid[row][c] !== 0) disabled.push(grid[row][c]);
+    }
+
+    // Check Col
+    for (let r = 0; r < size; r++) {
+      if (grid[r][col] !== 0) disabled.push(grid[r][col]);
+    }
+
+    // Check Subgrid
+    const startRow = Math.floor(row / boxSize) * boxSize;
+    const startCol = Math.floor(col / boxSize) * boxSize;
+    for (let r = 0; r < boxSize; r++) {
+      for (let c = 0; c < boxSize; c++) {
+        const val = grid[startRow + r][startCol + c];
+        if (val !== 0) disabled.push(val);
+      }
+    }
+
+    return disabled;
   };
 
   const handleSolve = () => {
@@ -234,32 +231,36 @@ const App: React.FC = () => {
       const solved = solveSudoku(grid);
       if (solved) {
         setGrid(solved);
-        setStatusMessage("Solved!");
+        showStatus("Solved!");
         playSound('success');
       } else {
-        setStatusMessage("Unsolvable puzzle.");
+        showStatus("Unsolvable puzzle.");
         playSound('error');
       }
       setLoading(false);
     }, 100);
   };
 
-  const startNewGame = (size: GridSize, difficulty: 'easy' | 'medium' | 'hard') => {
+  const startNewGame = (size: GridSize, diff: 'easy' | 'medium' | 'hard') => {
     playSound('click');
     setLoading(true);
     setLoadingText(`Generating ${size}x${size}...`);
     setGridSize(size);
+    setDifficulty(diff);
+    setShowGameConfig(false);
 
     setTimeout(() => {
       try {
-        const { puzzle, solution: solved } = generateSudoku(size, difficulty);
+        const { puzzle, solution: solved } = generateSudoku(size, diff);
         setGrid(puzzle);
         setInitialGrid(puzzle);
         setSolution(solved);
-        setStatusMessage(`Started ${size}x${size} ${difficulty} game`);
+        setHintCells([]);
+        setAnimatingHint(null);
+        showStatus(`Started ${size}x${size} ${diff} game`);
         playSound('success');
       } catch (e) {
-        setStatusMessage("Error generating game");
+        showStatus("Error generating game");
         playSound('error');
       }
       setLoading(false);
@@ -284,9 +285,12 @@ const App: React.FC = () => {
       const newGrid = grid.map(r => [...r]);
       newGrid[randomCell.r][randomCell.c] = solution[randomCell.r][randomCell.c];
       setGrid(newGrid);
+      setHintCells(prev => [...prev, { row: randomCell.r, col: randomCell.c }]);
+      setAnimatingHint({ row: randomCell.r, col: randomCell.c });
+      setTimeout(() => setAnimatingHint(null), 2000);
       playSound('scribble');
     } else {
-      setStatusMessage("Board is full!");
+      showStatus("Board is full!");
     }
   };
 
@@ -304,15 +308,15 @@ const App: React.FC = () => {
     }
     if (isCorrect) playSound('success');
     else playSound('error');
-    setStatusMessage(isCorrect ? "All Correct! 🎉" : "Mistakes found 🤔");
+    showStatus(isCorrect ? "All Correct! 🎉" : "Mistakes found 🤔");
   };
 
   return (
-    <div className="h-[100dvh] w-full flex flex-col font-[Patrick_Hand] bg-[#fef9c3] relative overflow-hidden">
+    <div className="h-[100dvh] w-full flex flex-col font-[Patrick_Hand] bg-[#fef9c3] relative overflow-hidden pt-8 sm:pt-4">
       {loading && <Loader text={loadingText} />}
 
       {/* --- Top Header --- */}
-      <header className="flex-shrink-0 py-2 px-4 flex justify-between items-center max-w-2xl mx-auto w-full z-10">
+      <header className="flex-shrink-0 py-2 px-4 flex justify-between items-center max-w-2xl mx-auto w-full z-10 mt-4 sm:mt-0">
         <h1 className="text-2xl md:text-4xl font-bold text-black drop-shadow-[2px_2px_0px_rgba(255,255,255,1)]">
           Comic Sudoku
         </h1>
@@ -329,23 +333,60 @@ const App: React.FC = () => {
       {/* --- Main Content --- */}
       <main className="flex-1 flex flex-col px-4 pb-24 max-w-lg mx-auto w-full overflow-y-auto md:overflow-hidden">
 
-        {/* Status Banner */}
-        <div className="flex-shrink-0 min-h-[2rem] mb-1 flex items-center justify-center">
+        {/* Status Banner - Fixed Overlay */}
+        <div className="absolute top-16 left-0 w-full z-50 flex justify-center pointer-events-none">
           {statusMessage && (
-            <div className="bg-white border-[3px] border-black px-4 py-1 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-bounce">
+            <div className="bg-white border-[3px] border-black px-4 py-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-bounce pointer-events-auto">
               <span className="font-bold text-sm text-black">{statusMessage}</span>
             </div>
           )}
         </div>
 
         {/* Grid Area: Flexible height, centers board */}
-        <div className="flex-1 min-h-0 flex items-center justify-center my-2 w-full">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center my-2 w-full relative">
+
+          {/* Toolbar above board */}
+          <div className="w-full max-w-md flex justify-between items-end mb-1 pr-2 pl-2">
+            {/* Left: Config Button (Play Mode Only) */}
+            {mode === AppMode.PLAY && (
+              <button onClick={() => setShowGameConfig(true)} className="bg-white text-black border-[2px] border-black px-2 py-1 rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center gap-1 active:translate-y-1 active:shadow-none text-xs font-bold hover:bg-purple-100">
+                <DoodleIcon name="settings" className="w-4 h-4" /> Config
+              </button>
+            )}
+
+            {/* Center: Difficulty Indicator (Play Mode Only) */}
+            {mode === AppMode.PLAY && solution && (
+              <div className="bg-yellow-300 border-[2px] border-black px-3 py-1 rounded-full shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-xs font-bold uppercase">
+                {gridSize}x{gridSize} - {difficulty}
+              </div>
+            )}
+
+            {/* Right: Clear Button */}
+            <button onClick={() => resetBoard(gridSize)} className="bg-white text-black border-[2px] border-black px-2 py-1 rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center gap-1 active:translate-y-1 active:shadow-none text-xs font-bold hover:bg-red-100 ml-auto">
+              <DoodleIcon name="trash" className="w-4 h-4" /> Clear
+            </button>
+          </div>
+
           <div className="aspect-square max-h-full w-full max-w-md relative pr-2 pb-2">
-            <SudokuBoard
-              grid={grid}
-              initialGrid={initialGrid}
-              onCellChange={handleCellChange}
-            />
+            {/* Play Mode Initial State Overlay */}
+            {mode === AppMode.PLAY && !solution ? (
+              <div className="w-full h-full bg-white/50 border-[4px] border-black border-dashed rounded-3xl flex flex-col items-center justify-center gap-4 p-4">
+                <p className="text-xl font-bold text-center">Ready to Play?</p>
+                <button onClick={() => startNewGame(9, 'medium')} className="bg-green-400 text-black border-[4px] border-black px-8 py-4 rounded-2xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-2xl font-bold active:translate-y-1 active:shadow-none hover:bg-green-300 animate-pulse">
+                  PLAY
+                </button>
+                <p className="text-sm text-gray-600">Auto-generates 9x9 Medium</p>
+              </div>
+            ) : (
+              <SudokuBoard
+                grid={grid}
+                initialGrid={initialGrid}
+                selectedCell={selectedCell}
+                onCellClick={handleCellClick}
+                hintCells={hintCells}
+                animatingHint={animatingHint}
+              />
+            )}
           </div>
         </div>
 
@@ -358,7 +399,7 @@ const App: React.FC = () => {
               <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
               <input type="file" accept="image/*" capture="environment" className="hidden" ref={cameraInputRef} onChange={handleFileUpload} />
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 mb-4">
                 <button onClick={() => { playSound('click'); cameraInputRef.current?.click(); }} className="bg-sky-300 text-black border-[3px] border-black p-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center justify-center active:translate-y-1 active:shadow-none hover:bg-sky-200">
                   <DoodleIcon name="camera" className="w-6 h-6 mb-1" />
                   <span className="font-bold text-sm">Camera</span>
@@ -369,49 +410,31 @@ const App: React.FC = () => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => resetBoard(9)} className="bg-white text-black border-[3px] border-black p-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-2 active:translate-y-1 active:shadow-none">
-                  <DoodleIcon name="trash" className="w-5 h-5" /> <span className="text-sm">Clear</span>
-                </button>
-                <button onClick={handleSolve} className="bg-green-400 text-black border-[3px] border-black p-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-2 active:translate-y-1 active:shadow-none hover:bg-green-300">
-                  <DoodleIcon name="solve" className="w-5 h-5" /> <span className="text-sm">Solve</span>
-                </button>
-              </div>
+              {/* Show Solve only if grid has content AND keyboard is NOT active */}
+              {grid.some(row => row.some(c => c !== 0)) && !selectedCell && (
+                <div className="flex justify-center mb-2">
+                  <button onClick={handleSolve} className="w-full bg-green-400 text-black border-[3px] border-black p-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-2 active:translate-y-1 active:shadow-none hover:bg-green-300">
+                    <DoodleIcon name="solve" className="w-5 h-5" /> <span className="text-sm font-bold">Solve Puzzle</span>
+                  </button>
+                </div>
+              )}
             </>
           )}
 
           {/* MANUAL MODE */}
-          {mode === AppMode.MANUAL && (
+          {mode === AppMode.MANUAL && !selectedCell && (
             <>
-              <div className="grid grid-cols-2 gap-3 mt-auto">
-                <button onClick={() => resetBoard(9)} className="bg-white text-black border-[3px] border-black p-3 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-2 active:translate-y-1 active:shadow-none">
-                  <DoodleIcon name="trash" className="w-5 h-5" /> <span className="text-sm">Clear</span>
-                </button>
-                <button onClick={handleSolve} className="bg-green-400 text-black border-[3px] border-black p-3 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-2 active:translate-y-1 active:shadow-none hover:bg-green-300">
-                  <DoodleIcon name="solve" className="w-5 h-5" /> <span className="text-sm">Solve</span>
+              <div className="flex justify-center mb-2 mt-4">
+                <button onClick={handleSolve} className="w-full bg-green-400 text-black border-[3px] border-black p-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-2 active:translate-y-1 active:shadow-none hover:bg-green-300">
+                  <DoodleIcon name="solve" className="w-5 h-5" /> <span className="text-sm font-bold">Solve</span>
                 </button>
               </div>
             </>
           )}
 
           {/* PLAY MODE */}
-          {mode === AppMode.PLAY && (
+          {mode === AppMode.PLAY && solution && (
             <>
-              {/* Grid Size & Diff */}
-              <div className="flex gap-2 mb-1">
-                <div className="flex gap-1">
-                  <button onClick={() => resetBoard(4)} className={`px-3 py-1 border-[2px] border-black rounded-xl font-bold text-xs ${gridSize === 4 ? 'bg-pink-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white'}`}>4x4</button>
-                  <button onClick={() => resetBoard(9)} className={`px-3 py-1 border-[2px] border-black rounded-xl font-bold text-xs ${gridSize === 9 ? 'bg-pink-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white'}`}>9x9</button>
-                </div>
-                <div className="flex-1 flex gap-1">
-                  {(['easy', 'medium', 'hard'] as const).map((diff) => (
-                    <button key={diff} onClick={() => startNewGame(gridSize, diff)} className="flex-1 bg-white hover:bg-yellow-200 text-black border-[2px] border-black py-1 rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-[10px] sm:text-xs font-bold uppercase active:translate-y-1 active:shadow-none transition-colors">
-                      {diff}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Tools */}
               <div className="grid grid-cols-3 gap-2">
                 <button onClick={handleHint} className="bg-purple-300 text-black border-[3px] border-black p-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center justify-center active:translate-y-1 active:shadow-none hover:bg-purple-200">
@@ -427,10 +450,21 @@ const App: React.FC = () => {
             </>
           )}
         </div>
+
+        {/* Keyboard - Popup */}
+        <NumberKeyboard
+          gridSize={gridSize}
+          onNumberClick={handleNumberInput}
+          onDelete={handleDelete}
+          onSolve={mode !== AppMode.PLAY ? handleSolve : undefined}
+          disabledNumbers={getDisabledNumbers()}
+          visible={!!selectedCell}
+          onClose={() => setSelectedCell(null)}
+        />
       </main>
 
       {/* --- Bottom Nav --- */}
-      <nav className="fixed bottom-0 w-full bg-white border-t-4 border-black p-2 pb-6 flex justify-around z-40 shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.1)]">
+      <nav className="fixed bottom-0 w-full bg-white border-t-4 border-black p-2 pb-0 flex justify-around z-40 shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.1)]">
         <button onClick={() => switchMode(AppMode.SCAN)} className={`flex flex-col items-center gap-1 w-16 transition-all ${mode === AppMode.SCAN ? '-translate-y-3' : 'opacity-60'}`}>
           <div className={`p-2 rounded-full border-[3px] border-black ${mode === AppMode.SCAN ? 'bg-sky-300 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]' : 'bg-gray-100'}`}>
             <DoodleIcon name="camera" className="w-6 h-6" />
@@ -454,15 +488,39 @@ const App: React.FC = () => {
       </nav>
 
       {/* --- Modals --- */}
+      {showGameConfig && (
+        <Modal title="New Game" onClose={() => setShowGameConfig(false)}>
+          <div className="flex flex-col gap-4">
+            <div>
+              <h3 className="font-bold mb-2">Grid Size</h3>
+              <div className="flex gap-2">
+                <button onClick={() => setGridSize(4)} className={`flex-1 py-2 border-[3px] border-black rounded-xl font-bold ${gridSize === 4 ? 'bg-pink-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white'}`}>4x4 (Mini)</button>
+                <button onClick={() => setGridSize(9)} className={`flex-1 py-2 border-[3px] border-black rounded-xl font-bold ${gridSize === 9 ? 'bg-pink-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white'}`}>9x9 (Standard)</button>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-bold mb-2">Difficulty</h3>
+              <div className="flex flex-col gap-2">
+                {(['easy', 'medium', 'hard'] as const).map((diff) => (
+                  <button key={diff} onClick={() => startNewGame(gridSize, diff)} className="w-full bg-white hover:bg-yellow-200 text-black border-[3px] border-black py-3 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-bold uppercase active:translate-y-1 active:shadow-none transition-colors">
+                    {diff}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {showHelp && (
         <Modal title="How to Use" onClose={() => setShowHelp(false)}>
-          <h3 className="font-bold mb-2 text-lg">📷 Scan Mode</h3>
+          <h3 className="font-bold mb-2 text-lg flex items-center gap-2"><DoodleIcon name="camera" className="w-5 h-5" /> Scan Mode</h3>
           <p className="mb-4 text-sm">Take a photo or upload a screenshot of an unsolved Sudoku. The AI will fill the board for you! Check the numbers and click "Solve".</p>
 
-          <h3 className="font-bold mb-2 text-lg">✏️ Edit Mode</h3>
+          <h3 className="font-bold mb-2 text-lg flex items-center gap-2"><DoodleIcon name="pencil" className="w-5 h-5" /> Edit Mode</h3>
           <p className="mb-4 text-sm">Manually type in numbers from a newspaper or book. Click "Solve" to get the answer instantly.</p>
 
-          <h3 className="font-bold mb-2 text-lg">🎮 Play Mode</h3>
+          <h3 className="font-bold mb-2 text-lg flex items-center gap-2"><DoodleIcon name="gamepad" className="w-5 h-5" /> Play Mode</h3>
           <p className="mb-2 text-sm">Generate endless puzzles! Select 4x4 (Mini) or 9x9 (Standard) size.</p>
           <ul className="list-disc pl-4 text-sm">
             <li><strong>Hint:</strong> Fills one random cell.</li>
@@ -498,13 +556,19 @@ const App: React.FC = () => {
             <div className="flex flex-col gap-2">
               <label className="font-bold text-lg">Gemini API Key</label>
               <p className="text-xs text-gray-500">Enter your API key to use the scanning feature. It will be saved on your device.</p>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={handleApiKeyChange}
-                placeholder="AIzaSy..."
-                className="w-full p-2 border-[3px] border-black rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={tempApiKey}
+                  onChange={handleApiKeyChange}
+                  placeholder="AIzaSy..."
+                  className="flex-1 p-2 border-[3px] border-black rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
+                />
+                <button onClick={saveSettings} className="bg-blue-400 text-white font-bold px-4 py-2 rounded-xl border-[3px] border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-1 active:shadow-none flex items-center justify-center">
+                  <DoodleIcon name="save" className="w-6 h-6" />
+                </button>
+              </div>
+              {saveMessage && <p className="text-green-600 font-bold text-center">{saveMessage}</p>}
             </div>
           </div>
         </Modal>

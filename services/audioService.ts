@@ -38,7 +38,7 @@ export const playSound = (type: 'click' | 'pop' | 'success' | 'error' | 'scribbl
       }
       break;
 
-    case 'pop': // Lower "thud" for tabs
+    case 'pop': // Lower "thud" for tabs - SHORTENED to 0.05s
       {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
@@ -47,13 +47,13 @@ export const playSound = (type: 'click' | 'pop' | 'success' | 'error' | 'scribbl
 
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(300, now);
-        osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
 
         gain.gain.setValueAtTime(0.1, now);
-        gain.gain.linearRampToValueAtTime(0, now + 0.1);
+        gain.gain.linearRampToValueAtTime(0, now + 0.05);
 
         osc.start(now);
-        osc.stop(now + 0.1);
+        osc.stop(now + 0.05);
       }
       break;
 
