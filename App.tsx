@@ -4,8 +4,10 @@ import { Loader } from './components/Loader';
 import { Modal } from './components/Modal';
 import { NumberKeyboard } from './components/NumberKeyboard';
 import { DoodleIcon } from './components/DoodleIcon';
+import { CameraScanner } from './components/CameraScanner';
 import { createEmptyBoard, solveSudoku, generateSudoku } from './services/sudokuLogic';
 import { extractSudokuFromImage, setCustomApiKey } from './services/geminiService';
+import { extractSudokuFromImageLocal } from './services/localMLService';
 import { SudokuGrid, AppMode, GridSize, CellPosition } from './types';
 import { playSound, setMuted } from './services/audioService';
 
@@ -26,6 +28,7 @@ const App: React.FC = () => {
   const [showAbout, setShowAbout] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showGameConfig, setShowGameConfig] = useState(false);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
 
   // Settings State
   const [isMutedState, setIsMutedState] = useState(false);
@@ -40,7 +43,6 @@ const App: React.FC = () => {
   const [animatingHint, setAnimatingHint] = useState<CellPosition | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Load Settings on Mount
   useEffect(() => {
@@ -143,32 +145,50 @@ const App: React.FC = () => {
       reader.onloadend = async () => {
         const base64String = reader.result as string;
         const base64Data = base64String.split(',')[1];
-
-        try {
-          const extractedGrid = await extractSudokuFromImage(base64Data);
-          setGridSize(9); // Scanner currently supports 9x9
-          setGrid(extractedGrid);
-          setInitialGrid(extractedGrid);
-          setSolution(null);
-          setHintCells([]);
-          setErrorCells([]);
-          setAnimatingHint(null);
-          playSound('success');
-        } catch (error) {
-          console.error(error);
-          showStatus("Could not identify a Sudoku. Try a clearer image.");
-          playSound('error');
-        } finally {
-          setLoading(false);
-          // Clear input
-          if (event.target) event.target.value = '';
-        }
+        await processImage(base64Data);
       };
       reader.readAsDataURL(file);
     } catch (error) {
       setLoading(false);
       showStatus("Error reading file.");
       playSound('error');
+    } finally {
+      if (event.target) event.target.value = '';
+    }
+  };
+
+  const handleCameraCapture = async (base64Data: string) => {
+    setShowCameraScanner(false);
+    setLoading(true);
+    setLoadingText("Processing Capture...");
+    await processImage(base64Data);
+  };
+
+  const processImage = async (base64Data: string) => {
+    try {
+      let extractedGrid: SudokuGrid;
+
+      if (useLocalModel) {
+        setLoadingText("Scanning locally...");
+        extractedGrid = await extractSudokuFromImageLocal(base64Data);
+      } else {
+        extractedGrid = await extractSudokuFromImage(base64Data);
+      }
+
+      setGridSize(9); // Scanner currently supports 9x9
+      setGrid(extractedGrid);
+      setInitialGrid(extractedGrid);
+      setSolution(null);
+      setHintCells([]);
+      setErrorCells([]);
+      setAnimatingHint(null);
+      playSound('success');
+    } catch (error) {
+      console.error(error);
+      showStatus("Could not identify a Sudoku. Try a clearer image.");
+      playSound('error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -363,6 +383,12 @@ const App: React.FC = () => {
   return (
     <div className="h-[100dvh] w-full flex flex-col font-[Patrick_Hand] bg-[#fef9c3] relative overflow-hidden pt-8 sm:pt-4">
       {loading && <Loader text={loadingText} />}
+      {showCameraScanner && (
+        <CameraScanner
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCameraScanner(false)}
+        />
+      )}
 
       {/* --- Top Header --- */}
       <header className="flex-shrink-0 py-2 px-4 flex justify-between items-center max-w-2xl mx-auto w-full z-10 mt-4 sm:mt-0">
@@ -447,10 +473,9 @@ const App: React.FC = () => {
           {mode === AppMode.SCAN && (
             <>
               <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
-              <input type="file" accept="image/*" capture="environment" className="hidden" ref={cameraInputRef} onChange={handleFileUpload} />
 
               <div className="grid grid-cols-2 gap-3 mb-4">
-                <button onClick={() => { playSound('click'); cameraInputRef.current?.click(); }} className="bg-sky-300 text-black border-[3px] border-black p-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center justify-center active:translate-y-1 active:shadow-none hover:bg-sky-200">
+                <button onClick={() => { playSound('click'); setShowCameraScanner(true); }} className="bg-sky-300 text-black border-[3px] border-black p-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center justify-center active:translate-y-1 active:shadow-none hover:bg-sky-200">
                   <DoodleIcon name="camera" className="w-6 h-6 mb-1" />
                   <span className="font-bold text-sm">Camera</span>
                 </button>
@@ -605,34 +630,43 @@ const App: React.FC = () => {
 
             <div className="flex justify-between items-center border-b-2 border-gray-200 pb-4">
               <div>
-                <span className="font-bold text-lg block">AI Model</span>
-                <span className="text-xs text-gray-500">Use local ML model (no API key needed)</span>
+                <span className="font-bold text-lg block">Enable Gemini Cloud AI</span>
+                <span className="text-xs text-gray-500">Use Google's AI for better accuracy (Requires API Key)</span>
               </div>
               <button
                 onClick={toggleLocalModel}
-                className={`w-14 h-8 rounded-full border-[3px] border-black flex items-center px-1 transition-colors ${useLocalModel ? 'bg-blue-400' : 'bg-gray-300'}`}
+                className={`w-14 h-8 rounded-full border-[3px] border-black flex items-center px-1 transition-colors ${!useLocalModel ? 'bg-green-400' : 'bg-gray-300'}`}
               >
-                <div className={`w-5 h-5 bg-white border-[2px] border-black rounded-full transition-transform ${useLocalModel ? 'translate-x-6' : 'translate-x-0'}`} />
+                <div className={`w-5 h-5 bg-white border-[2px] border-black rounded-full transition-transform ${!useLocalModel ? 'translate-x-6' : 'translate-x-0'}`} />
               </button>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="font-bold text-lg">Gemini API Key</label>
-              <p className="text-xs text-gray-500">Enter your API key to use the scanning feature. It will be saved on your device.</p>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={tempApiKey}
-                  onChange={handleApiKeyChange}
-                  placeholder="AIzaSy..."
-                  className="flex-1 p-2 border-[3px] border-black rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
-                />
-                <button onClick={saveSettings} className="bg-blue-400 text-white font-bold px-4 py-2 rounded-xl border-[3px] border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-1 active:shadow-none flex items-center justify-center">
-                  <DoodleIcon name="save" className="w-6 h-6" />
-                </button>
+            {!useLocalModel && (
+              <div className="flex flex-col gap-2 animate-fade-in">
+                <label className="font-bold text-lg">Gemini API Key</label>
+                <p className="text-xs text-gray-500">Enter your API key to use the scanning feature. It will be saved on your device.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={tempApiKey}
+                    onChange={handleApiKeyChange}
+                    placeholder="AIzaSy..."
+                    className="flex-1 p-2 border-[3px] border-black rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
+                  />
+                  <button onClick={saveSettings} className="bg-blue-400 text-white font-bold px-4 py-2 rounded-xl border-[3px] border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-1 active:shadow-none flex items-center justify-center">
+                    <DoodleIcon name="save" className="w-6 h-6" />
+                  </button>
+                </div>
+                {saveMessage && <p className="text-green-600 font-bold text-center">{saveMessage}</p>}
               </div>
-              {saveMessage && <p className="text-green-600 font-bold text-center">{saveMessage}</p>}
-            </div>
+            )}
+
+            {useLocalModel && (
+              <div className="p-4 bg-blue-50 border-[3px] border-black border-dashed rounded-xl">
+                <p className="text-sm font-bold text-center">Using Local Device Mode</p>
+                <p className="text-xs text-center text-gray-600 mt-1">Scanning runs offline on your device. No API key required.</p>
+              </div>
+            )}
           </div>
         </Modal>
       )}
