@@ -13,7 +13,8 @@
     "@google/genai": "^1.30.0",
     "@tensorflow/tfjs": "^4.22.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
     "@capacitor/android": "^7.4.4",
