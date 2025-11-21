@@ -29,12 +29,14 @@ const App: React.FC = () => {
 
   // Settings State
   const [isMutedState, setIsMutedState] = useState(false);
+  const [useLocalModel, setUseLocalModel] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [tempApiKey, setTempApiKey] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
 
   const [selectedCell, setSelectedCell] = useState<CellPosition | null>(null);
   const [hintCells, setHintCells] = useState<CellPosition[]>([]);
+  const [errorCells, setErrorCells] = useState<CellPosition[]>([]);
   const [animatingHint, setAnimatingHint] = useState<CellPosition | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,10 +45,12 @@ const App: React.FC = () => {
   // Load Settings on Mount
   useEffect(() => {
     const savedMuted = localStorage.getItem('comic_sudoku_muted') === 'true';
+    const savedLocalModel = localStorage.getItem('comic_sudoku_local_model') === 'true';
     const savedKey = localStorage.getItem('comic_sudoku_api_key') || "";
 
     setIsMutedState(savedMuted);
     setMuted(savedMuted);
+    setUseLocalModel(savedLocalModel);
 
     setApiKey(savedKey);
     setTempApiKey(savedKey);
@@ -59,6 +63,13 @@ const App: React.FC = () => {
     setIsMutedState(newVal);
     setMuted(newVal);
     localStorage.setItem('comic_sudoku_muted', String(newVal));
+    playSound('click');
+  };
+
+  const toggleLocalModel = () => {
+    const newVal = !useLocalModel;
+    setUseLocalModel(newVal);
+    localStorage.setItem('comic_sudoku_local_model', String(newVal));
     playSound('click');
   };
 
@@ -87,6 +98,7 @@ const App: React.FC = () => {
     setStatusMessage("");
     setSelectedCell(null);
     setHintCells([]);
+    setErrorCells([]);
     setAnimatingHint(null);
   };
 
@@ -104,6 +116,7 @@ const App: React.FC = () => {
       setStatusMessage("");
       setSelectedCell(null);
       setHintCells([]);
+      setErrorCells([]);
       setAnimatingHint(null);
     }
   };
@@ -138,6 +151,7 @@ const App: React.FC = () => {
           setInitialGrid(extractedGrid);
           setSolution(null);
           setHintCells([]);
+          setErrorCells([]);
           setAnimatingHint(null);
           playSound('success');
         } catch (error) {
@@ -178,6 +192,9 @@ const App: React.FC = () => {
     const newGrid = grid.map(r => [...r]);
     newGrid[row][col] = num;
     setGrid(newGrid);
+
+    // Clear error for this cell if it was marked as error
+    setErrorCells(prev => prev.filter(e => !(e.row === row && e.col === col)));
     playSound('scribble');
   };
 
@@ -189,6 +206,9 @@ const App: React.FC = () => {
     const newGrid = grid.map(r => [...r]);
     newGrid[row][col] = 0;
     setGrid(newGrid);
+
+    // Clear error for this cell
+    setErrorCells(prev => prev.filter(e => !(e.row === row && e.col === col)));
     playSound('scribble');
   };
 
@@ -231,6 +251,7 @@ const App: React.FC = () => {
       const solved = solveSudoku(grid);
       if (solved) {
         setGrid(solved);
+        setErrorCells([]);
         showStatus("Solved!");
         playSound('success');
       } else {
@@ -255,6 +276,7 @@ const App: React.FC = () => {
         setGrid(puzzle);
         setInitialGrid(puzzle);
         setSolution(solved);
+        setErrorCells([]);
         setHintCells([]);
         setAnimatingHint(null);
         showStatus(`Started ${size}x${size} ${diff} game`);
@@ -297,18 +319,45 @@ const App: React.FC = () => {
   const handleCheck = () => {
     playSound('click');
     if (!solution) return;
-    let isCorrect = true;
+
+    // Check if board is complete
+    let hasEmpty = false;
     for (let r = 0; r < gridSize; r++) {
       for (let c = 0; c < gridSize; c++) {
-        if (grid[r][c] !== solution[r][c]) {
-          isCorrect = false;
+        if (grid[r][c] === 0) {
+          hasEmpty = true;
           break;
         }
       }
+      if (hasEmpty) break;
     }
-    if (isCorrect) playSound('success');
-    else playSound('error');
-    showStatus(isCorrect ? "All Correct! 🎉" : "Mistakes found 🤔");
+
+    if (hasEmpty) {
+      showStatus("Board is incomplete! Fill all cells first.");
+      playSound('error');
+      return;
+    }
+
+    // Find errors in user-entered cells
+    const errors: CellPosition[] = [];
+    for (let r = 0; r < gridSize; r++) {
+      for (let c = 0; c < gridSize; c++) {
+        // Only check cells that were not part of initial grid (user-entered)
+        if (initialGrid[r][c] === 0 && grid[r][c] !== solution[r][c]) {
+          errors.push({ row: r, col: c });
+        }
+      }
+    }
+
+    if (errors.length === 0) {
+      setErrorCells([]);
+      showStatus("All Correct! 🎉");
+      playSound('success');
+    } else {
+      setErrorCells(errors);
+      showStatus(`Found ${errors.length} mistake${errors.length > 1 ? 's' : ''}! Check highlighted cells.`);
+      playSound('error');
+    }
   };
 
   return (
@@ -384,6 +433,7 @@ const App: React.FC = () => {
                 selectedCell={selectedCell}
                 onCellClick={handleCellClick}
                 hintCells={hintCells}
+                errorCells={errorCells}
                 animatingHint={animatingHint}
               />
             )}
@@ -443,7 +493,7 @@ const App: React.FC = () => {
                 <button onClick={handleCheck} className="bg-orange-300 text-black border-[3px] border-black p-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center justify-center active:translate-y-1 active:shadow-none hover:bg-orange-200">
                   <DoodleIcon name="check" className="w-5 h-5" /> <span className="text-[10px] font-bold">Check</span>
                 </button>
-                <button onClick={() => { playSound('click'); solution && setGrid(solution); }} className="bg-red-300 text-black border-[3px] border-black p-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center justify-center active:translate-y-1 active:shadow-none hover:bg-red-200">
+                <button onClick={() => { playSound('click'); solution && setGrid(solution); setErrorCells([]); }} className="bg-red-300 text-black border-[3px] border-black p-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center justify-center active:translate-y-1 active:shadow-none hover:bg-red-200">
                   <DoodleIcon name="solve" className="w-5 h-5" /> <span className="text-[10px] font-bold">Give Up</span>
                 </button>
               </div>
@@ -550,6 +600,19 @@ const App: React.FC = () => {
                 className={`w-14 h-8 rounded-full border-[3px] border-black flex items-center px-1 transition-colors ${isMutedState ? 'bg-gray-300' : 'bg-green-400'}`}
               >
                 <div className={`w-5 h-5 bg-white border-[2px] border-black rounded-full transition-transform ${isMutedState ? 'translate-x-0' : 'translate-x-6'}`} />
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center border-b-2 border-gray-200 pb-4">
+              <div>
+                <span className="font-bold text-lg block">AI Model</span>
+                <span className="text-xs text-gray-500">Use local ML model (no API key needed)</span>
+              </div>
+              <button
+                onClick={toggleLocalModel}
+                className={`w-14 h-8 rounded-full border-[3px] border-black flex items-center px-1 transition-colors ${useLocalModel ? 'bg-blue-400' : 'bg-gray-300'}`}
+              >
+                <div className={`w-5 h-5 bg-white border-[2px] border-black rounded-full transition-transform ${useLocalModel ? 'translate-x-6' : 'translate-x-0'}`} />
               </button>
             </div>
 
