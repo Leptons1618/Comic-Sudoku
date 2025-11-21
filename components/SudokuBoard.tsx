@@ -6,11 +6,20 @@ interface SudokuBoardProps {
   initialGrid: SudokuGrid;
   selectedCell: CellPosition | null;
   onCellClick: (row: number, col: number) => void;
-  hintCells: CellPosition[];
-  animatingHint: CellPosition | null;
+  hintCells?: CellPosition[];
+  errorCells?: CellPosition[];
+  animatingHint?: CellPosition | null;
 }
 
-export const SudokuBoard: React.FC<SudokuBoardProps> = ({ grid, initialGrid, selectedCell, onCellClick, hintCells, animatingHint }) => {
+export const SudokuBoard: React.FC<SudokuBoardProps> = ({
+  grid,
+  initialGrid,
+  selectedCell,
+  onCellClick,
+  hintCells = [],
+  errorCells = [],
+  animatingHint
+}) => {
   const size = grid.length;
   const boxSize = Math.sqrt(size);
 
@@ -29,13 +38,18 @@ export const SudokuBoard: React.FC<SudokuBoardProps> = ({ grid, initialGrid, sel
             const isBottomBorder = (rowIndex + 1) % boxSize === 0 && rowIndex !== (size - 1);
 
             // Is this a locked initial cell?
-            const isLocked = initialGrid[rowIndex][colIndex] !== 0;
+            const isInitial = initialGrid[rowIndex][colIndex] !== 0;
 
             // Is selected?
             const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
 
             // Is Hint?
             const isHint = hintCells.some(h => h.row === rowIndex && h.col === colIndex);
+
+            // Is Error?
+            const isError = errorCells.some(e => e.row === rowIndex && e.col === colIndex);
+
+            // Is Animating?
             const isAnimating = animatingHint?.row === rowIndex && animatingHint?.col === colIndex;
 
             return (
@@ -47,10 +61,12 @@ export const SudokuBoard: React.FC<SudokuBoardProps> = ({ grid, initialGrid, sel
                   ${size === 9 ? 'text-lg sm:text-xl' : 'text-2xl sm:text-3xl'}
                   ${isRightBorder ? 'mr-[4px]' : 'mr-[1px]'} 
                   ${isBottomBorder ? 'mb-[4px]' : 'mb-[1px]'}
-                  ${isLocked ? 'text-black font-extrabold' : isHint ? 'text-purple-600 font-bold' : 'text-blue-600 font-semibold'}
-                  ${isAnimating ? 'animate-pulse' : ''}
-                  ${isSelected ? 'bg-blue-50 z-10' : 'bg-white'}
-                  hover:bg-gray-50
+                  ${isInitial ? 'text-black font-extrabold' : 'text-blue-600 font-semibold'}
+                  ${isError ? 'text-red-600 bg-red-100' : ''}
+                  ${isHint ? 'text-purple-600 font-bold' : ''}
+                  ${isAnimating ? 'animate-pulse bg-purple-200' : ''}
+                  ${isSelected ? 'z-10' : 'bg-white'}
+                  ${!isError && !isSelected && !isAnimating ? 'hover:bg-gray-50' : ''}
                 `}
               >
                 {isSelected && (
