@@ -1,0 +1,7 @@
+{
+  "name": "Comic Sudoku Solver",
+  "description": "A doodle-themed Sudoku solver that scans puzzles from your camera and solves them instantly.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
