@@ -5,6 +5,9 @@ import { Modal } from './components/Modal';
 import { NumberKeyboard } from './components/NumberKeyboard';
 import { DoodleIcon } from './components/DoodleIcon';
 import { CameraScanner } from './components/CameraScanner';
+import { HelpModal } from './components/HelpModal';
+import { DebugVisualization } from './components/DebugVisualization';
+
 import { createEmptyBoard, solveSudoku, generateSudoku } from './services/sudokuLogic';
 import { extractSudokuFromImage, setCustomApiKey } from './services/geminiService';
 import { extractSudokuFromImageLocal } from './services/localMLService';
@@ -33,9 +36,11 @@ const App: React.FC = () => {
   // Settings State
   const [isMutedState, setIsMutedState] = useState(false);
   const [useLocalModel, setUseLocalModel] = useState(false);
+  const [showDebugVisualization, setShowDebugVisualization] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [tempApiKey, setTempApiKey] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [debugData, setDebugData] = useState<any>(null);
 
   const [selectedCell, setSelectedCell] = useState<CellPosition | null>(null);
   const [hintCells, setHintCells] = useState<CellPosition[]>([]);
@@ -167,27 +172,37 @@ const App: React.FC = () => {
   const processImage = async (base64Data: string) => {
     try {
       let extractedGrid: SudokuGrid;
+      let debug: any = null;
 
       if (useLocalModel) {
         setLoadingText("Scanning locally...");
-        extractedGrid = await extractSudokuFromImageLocal(base64Data);
+        const result = await extractSudokuFromImageLocal(base64Data, showDebugVisualization);
+        extractedGrid = result.grid;
+        debug = result.debugData;
       } else {
         extractedGrid = await extractSudokuFromImage(base64Data);
       }
 
-      setGridSize(9); // Scanner currently supports 9x9
-      setGrid(extractedGrid);
-      setInitialGrid(extractedGrid);
-      setSolution(null);
-      setHintCells([]);
-      setErrorCells([]);
-      setAnimatingHint(null);
-      playSound('success');
+      if (showDebugVisualization && debug) {
+        setDebugData(debug);
+        setLoading(false);
+        // Don't auto-apply grid, wait for user to click "Use This Grid"
+      } else {
+        // Apply grid immediately if debug is off
+        setGridSize(9);
+        setGrid(extractedGrid);
+        setInitialGrid(extractedGrid);
+        setSolution(null);
+        setHintCells([]);
+        setErrorCells([]);
+        setAnimatingHint(null);
+        playSound('success');
+        setLoading(false);
+      }
     } catch (error) {
       console.error(error);
       showStatus("Could not identify a Sudoku. Try a clearer image.");
       playSound('error');
-    } finally {
       setLoading(false);
     }
   };
@@ -496,16 +511,7 @@ const App: React.FC = () => {
             </>
           )}
 
-          {/* MANUAL MODE */}
-          {mode === AppMode.MANUAL && !selectedCell && (
-            <>
-              <div className="flex justify-center mb-2 mt-4">
-                <button onClick={handleSolve} className="w-full bg-green-400 text-black border-[3px] border-black p-2 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-2 active:translate-y-1 active:shadow-none hover:bg-green-300">
-                  <DoodleIcon name="solve" className="w-5 h-5" /> <span className="text-sm font-bold">Solve</span>
-                </button>
-              </div>
-            </>
-          )}
+
 
           {/* PLAY MODE */}
           {mode === AppMode.PLAY && solution && (
@@ -536,6 +542,8 @@ const App: React.FC = () => {
           visible={!!selectedCell}
           onClose={() => setSelectedCell(null)}
         />
+
+
       </main>
 
       {/* --- Bottom Nav --- */}
@@ -547,12 +555,7 @@ const App: React.FC = () => {
           <span className="font-bold text-[10px] uppercase">Scan</span>
         </button>
 
-        <button onClick={() => switchMode(AppMode.MANUAL)} className={`flex flex-col items-center gap-1 w-16 transition-all ${mode === AppMode.MANUAL ? '-translate-y-3' : 'opacity-60'}`}>
-          <div className={`p-2 rounded-full border-[3px] border-black ${mode === AppMode.MANUAL ? 'bg-yellow-300 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]' : 'bg-gray-100'}`}>
-            <DoodleIcon name="pencil" className="w-6 h-6" />
-          </div>
-          <span className="font-bold text-[10px] uppercase">Edit</span>
-        </button>
+
 
         <button onClick={() => switchMode(AppMode.PLAY)} className={`flex flex-col items-center gap-1 w-16 transition-all ${mode === AppMode.PLAY ? '-translate-y-3' : 'opacity-60'}`}>
           <div className={`p-2 rounded-full border-[3px] border-black ${mode === AppMode.PLAY ? 'bg-pink-300 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]' : 'bg-gray-100'}`}>
@@ -587,22 +590,7 @@ const App: React.FC = () => {
         </Modal>
       )}
 
-      {showHelp && (
-        <Modal title="How to Use" onClose={() => setShowHelp(false)}>
-          <h3 className="font-bold mb-2 text-lg flex items-center gap-2"><DoodleIcon name="camera" className="w-5 h-5" /> Scan Mode</h3>
-          <p className="mb-4 text-sm">Take a photo or upload a screenshot of an unsolved Sudoku. The AI will fill the board for you! Check the numbers and click "Solve".</p>
-
-          <h3 className="font-bold mb-2 text-lg flex items-center gap-2"><DoodleIcon name="pencil" className="w-5 h-5" /> Edit Mode</h3>
-          <p className="mb-4 text-sm">Manually type in numbers from a newspaper or book. Click "Solve" to get the answer instantly.</p>
-
-          <h3 className="font-bold mb-2 text-lg flex items-center gap-2"><DoodleIcon name="gamepad" className="w-5 h-5" /> Play Mode</h3>
-          <p className="mb-2 text-sm">Generate endless puzzles! Select 4x4 (Mini) or 9x9 (Standard) size.</p>
-          <ul className="list-disc pl-4 text-sm">
-            <li><strong>Hint:</strong> Fills one random cell.</li>
-            <li><strong>Check:</strong> Tells you if you are on the right track.</li>
-          </ul>
-        </Modal>
-      )}
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
 
       {showAbout && (
         <Modal title="About" onClose={() => setShowAbout(false)}>
@@ -667,8 +655,49 @@ const App: React.FC = () => {
                 <p className="text-xs text-center text-gray-600 mt-1">Scanning runs offline on your device. No API key required.</p>
               </div>
             )}
+
+            <div className="flex justify-between items-center border-b-2 border-gray-200 pb-4">
+              <div>
+                <span className="font-bold text-lg block">Debug Visualization</span>
+                <span className="text-xs text-gray-500">Show processed images after scanning</span>
+              </div>
+              <button
+                onClick={() => setShowDebugVisualization(!showDebugVisualization)}
+                className={`w-14 h-8 rounded-full border-[3px] border-black flex items-center px-1 transition-colors ${showDebugVisualization ? 'bg-purple-400' : 'bg-gray-300'}`}
+              >
+                <div className={`w-5 h-5 bg-white border-[2px] border-black rounded-full transition-transform ${showDebugVisualization ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
+            <div className="pt-4 border-t-2 border-gray-200">
+              <p className="text-xs text-gray-400 text-center">
+                Debug Mode Active
+              </p>
+            </div>
           </div>
         </Modal>
+      )}
+
+      {/* Debug Visualization */}
+      {debugData && (
+        <DebugVisualization
+          debugData={debugData}
+          onClose={() => setDebugData(null)}
+          onExtract={() => {
+            if (debugData.extractedGrid) {
+              setGridSize(9);
+              setGrid(debugData.extractedGrid);
+              setInitialGrid(debugData.extractedGrid);
+              setSolution(null);
+              setHintCells([]);
+              setErrorCells([]);
+              setAnimatingHint(null);
+              setDebugData(null);
+              playSound('success');
+              showStatus('Grid extracted successfully!');
+            }
+          }}
+        />
       )}
 
     </div>

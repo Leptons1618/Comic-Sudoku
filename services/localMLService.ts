@@ -1,10 +1,11 @@
-import Tesseract from 'tesseract.js';
+import { createWorker } from 'tesseract.js';
 import { SudokuGrid } from '../types';
 
 // Declare cv on window for TypeScript
 declare global {
     interface Window {
         cv: any;
+        extractSudokuFromImageLocal: any;
     }
 }
 
@@ -12,24 +13,34 @@ declare global {
  * Loads OpenCV.js dynamically if not already loaded.
  */
 export const loadOpenCV = async (): Promise<void> => {
-    if (window.cv) return;
+    if (window.cv && window.cv.getBuildInformation) return;
 
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = 'https://docs.opencv.org/4.8.0/opencv.js';
         script.async = true;
+
+        const timeout = setTimeout(() => {
+            reject(new Error("OpenCV load timed out"));
+        }, 10000); // 10s timeout
+
         script.onload = () => {
             // OpenCV.js has a runtime initialization
             if (window.cv.getBuildInformation) {
+                clearTimeout(timeout);
                 resolve();
             } else {
                 // Wait for runtime to be ready
                 window.cv['onRuntimeInitialized'] = () => {
+                    clearTimeout(timeout);
                     resolve();
                 };
             }
         };
-        script.onerror = () => reject(new Error("Failed to load OpenCV.js"));
+        script.onerror = () => {
+            clearTimeout(timeout);
+            reject(new Error("Failed to load OpenCV.js"));
+        }
         document.body.appendChild(script);
     });
 };
@@ -37,28 +48,62 @@ export const loadOpenCV = async (): Promise<void> => {
 /**
  * Extracts a Sudoku grid from a base64 image using local OCR (Tesseract.js) + OpenCV.
  */
-export const extractSudokuFromImageLocal = async (base64Data: string): Promise<SudokuGrid> => {
-    await loadOpenCV(); // Ensure OpenCV is ready
+/**
+ * Extracts a Sudoku grid from a base64 image using local OCR (Tesseract.js) + OpenCV.
+ */
+export const extractSudokuFromImageLocal = async (
+    base64Data: string,
+    returnDebug: boolean = false
+): Promise<{ grid: SudokuGrid, debugData?: any }> => {
+    console.log("extractSudokuFromImageLocal called");
+    try {
+        await loadOpenCV(); // Ensure OpenCV is ready
+        console.log("OpenCV loaded");
+    } catch (e) {
+        console.error("Failed to load OpenCV:", e);
+        throw e;
+    }
 
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = async () => {
             try {
+                console.log("Image loaded, processing board...");
                 // 1. Detect and Warp Board
                 const processedCanvas = processBoardWithOpenCV(img);
+                console.log("Board processed, recognizing grid...");
 
                 // 2. Slice and Recognize
                 const grid = await recognizeGrid(processedCanvas);
+                console.log("Grid recognized");
 
-                resolve(grid);
+                let debugData = null;
+                if (returnDebug) {
+                    debugData = {
+                        originalImage: base64Data,
+                        warpedBoard: processedCanvas.toDataURL(),
+                        extractedGrid: grid
+                    };
+                }
+
+                resolve({ grid, debugData });
             } catch (err) {
+                console.error("Error in extractSudokuFromImageLocal processing:", err);
                 reject(err);
             }
         };
-        img.onerror = (err) => reject(err);
+        img.onerror = (err) => {
+            console.error("Failed to load image for processing:", err);
+            reject(err);
+        };
         img.src = `data:image/png;base64,${base64Data}`;
     });
 };
+
+// Expose for automation testing
+if (typeof window !== 'undefined') {
+    window.extractSudokuFromImageLocal = extractSudokuFromImageLocal;
+}
 
 /**
  * Helper to detect board corners in an image (for real-time overlay).
@@ -247,56 +292,70 @@ const processBoardWithOpenCV = (img: HTMLImageElement): HTMLCanvasElement => {
 };
 
 const recognizeGrid = async (canvas: HTMLCanvasElement): Promise<SudokuGrid> => {
+    console.log("Starting grid recognition...");
     const size = canvas.width; // It's square now
     const cellSize = size / 9;
     const grid: number[][] = Array(9).fill(null).map(() => Array(9).fill(0));
-    const promises: Promise<void>[] = [];
 
-    for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-            const cellCanvas = document.createElement('canvas');
-            cellCanvas.width = cellSize;
-            cellCanvas.height = cellSize;
-            const cellCtx = cellCanvas.getContext('2d');
+    let worker;
+    try {
+        console.log("Creating Tesseract worker...");
+        worker = await createWorker('eng');
 
-            if (cellCtx) {
-                // Margin to remove grid lines
-                const margin = cellSize * 0.15;
-                cellCtx.drawImage(canvas,
-                    c * cellSize + margin, r * cellSize + margin,
-                    cellSize - 2 * margin, cellSize - 2 * margin,
-                    0, 0, cellSize, cellSize
-                );
+        // Optional: Set whitelist to only digits
+        await worker.setParameters({
+            tessedit_char_whitelist: '123456789',
+        });
 
-                // Check empty
-                const cellData = cellCtx.getImageData(0, 0, cellSize, cellSize);
-                if (isCellEmpty(cellData)) {
-                    grid[r][c] = 0;
-                    continue;
-                }
+        console.log("Worker created. Processing cells...");
 
-                // Recognize
-                const p = Tesseract.recognize(
-                    cellCanvas.toDataURL(),
-                    'eng',
-                    {
-                        logger: () => { },
-                        errorHandler: () => { }
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                const cellCanvas = document.createElement('canvas');
+                cellCanvas.width = cellSize;
+                cellCanvas.height = cellSize;
+                const cellCtx = cellCanvas.getContext('2d');
+
+                if (cellCtx) {
+                    // Margin to remove grid lines
+                    const margin = cellSize * 0.15;
+                    cellCtx.drawImage(canvas,
+                        c * cellSize + margin, r * cellSize + margin,
+                        cellSize - 2 * margin, cellSize - 2 * margin,
+                        0, 0, cellSize, cellSize
+                    );
+
+                    // Check empty
+                    const cellData = cellCtx.getImageData(0, 0, cellSize, cellSize);
+                    if (isCellEmpty(cellData)) {
+                        grid[r][c] = 0;
+                        continue;
                     }
-                ).then(({ data: { text } }) => {
-                    const clean = text.replace(/[^1-9]/g, '');
-                    const digit = parseInt(clean.charAt(0));
-                    grid[r][c] = isNaN(digit) ? 0 : digit;
-                }).catch(() => {
-                    grid[r][c] = 0;
-                });
 
-                promises.push(p);
+                    // Recognize using the shared worker
+                    try {
+                        const { data: { text } } = await worker.recognize(cellCanvas.toDataURL());
+                        const clean = text.replace(/[^1-9]/g, '');
+                        const digit = parseInt(clean.charAt(0));
+                        grid[r][c] = isNaN(digit) ? 0 : digit;
+                    } catch (err) {
+                        console.error(`Error recognizing cell [${r},${c}]:`, err);
+                        grid[r][c] = 0;
+                    }
+                }
             }
+        }
+    } catch (error) {
+        console.error("Error in recognizeGrid:", error);
+        throw error;
+    } finally {
+        if (worker) {
+            console.log("Terminating worker...");
+            await worker.terminate();
         }
     }
 
-    await Promise.all(promises);
+    console.log("Grid recognition complete:", grid);
     return grid;
 };
 

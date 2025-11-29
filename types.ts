@@ -18,6 +18,6 @@ export enum GameState {
 
 export enum AppMode {
   SCAN = 'SCAN',
-  MANUAL = 'MANUAL',
-  PLAY = 'PLAY'
+  PLAY = 'PLAY',
+  TEST = 'TEST'
 }

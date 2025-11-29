@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+tfjs-env/
+tfjs-convert-env/
+public/test_images/

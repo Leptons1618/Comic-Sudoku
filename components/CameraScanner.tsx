@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { DoodleIcon } from './DoodleIcon';
-import { detectBoardCorners, loadOpenCV } from '../services/localMLService';
+import { loadOpenCV } from '../services/localMLService';
 
 interface CameraScannerProps {
     onCapture: (imageData: string) => void;
@@ -9,30 +9,31 @@ interface CameraScannerProps {
 
 export const CameraScanner: React.FC<CameraScannerProps> = ({ onCapture, onClose }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [isBoardDetected, setIsBoardDetected] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string>("");
-    const requestRef = useRef<number>();
 
     useEffect(() => {
         let stream: MediaStream | null = null;
 
         const startCamera = async () => {
             try {
-                await loadOpenCV(); // Ensure OpenCV is ready
+                // Load OpenCV first
+                await loadOpenCV();
 
+                // Request camera access
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'environment' }
                 });
 
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
-                    videoRef.current.play();
-                    requestRef.current = requestAnimationFrame(processFrame);
+                    await videoRef.current.play();
+                    setIsLoading(false);
                 }
             } catch (err) {
                 console.error("Camera error:", err);
                 setError("Could not access camera. Ensure you are on HTTPS/localhost and have granted permissions.");
+                setIsLoading(false);
             }
         };
 
@@ -42,75 +43,8 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onCapture, onClose
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
             }
-            if (requestRef.current) {
-                cancelAnimationFrame(requestRef.current);
-            }
         };
     }, []);
-
-    const processFrame = () => {
-        if (!videoRef.current || !canvasRef.current) return;
-
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-
-        if (video.readyState === video.HAVE_ENOUGH_DATA && ctx) {
-            // Match canvas size to video
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-
-            // Draw video frame to canvas (hidden processing)
-            // We use a small offscreen canvas for processing to speed up OpenCV
-            const processCanvas = document.createElement('canvas');
-            const scale = 0.5; // Process at half resolution
-            processCanvas.width = video.videoWidth * scale;
-            processCanvas.height = video.videoHeight * scale;
-            const pCtx = processCanvas.getContext('2d');
-
-            if (pCtx) {
-                pCtx.drawImage(video, 0, 0, processCanvas.width, processCanvas.height);
-
-                // Detect
-                const points = detectBoardCorners(processCanvas);
-
-                // Clear previous drawings
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                if (points) {
-                    setIsBoardDetected(true);
-
-                    // Scale points back up
-                    const scaledPoints = points.map(p => ({ x: p.x / scale, y: p.y / scale }));
-
-                    // Draw Outline
-                    ctx.beginPath();
-                    ctx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
-                    ctx.lineTo(scaledPoints[1].x, scaledPoints[1].y);
-                    ctx.lineTo(scaledPoints[2].x, scaledPoints[2].y);
-                    ctx.lineTo(scaledPoints[3].x, scaledPoints[3].y);
-                    ctx.closePath();
-
-                    ctx.strokeStyle = '#4ade80'; // Green-400
-                    ctx.lineWidth = 4;
-                    ctx.stroke();
-
-                    // Draw corners
-                    ctx.fillStyle = '#4ade80';
-                    scaledPoints.forEach(p => {
-                        ctx.beginPath();
-                        ctx.arc(p.x, p.y, 6, 0, 2 * Math.PI);
-                        ctx.fill();
-                    });
-
-                } else {
-                    setIsBoardDetected(false);
-                }
-            }
-        }
-
-        requestRef.current = requestAnimationFrame(processFrame);
-    };
 
     const handleCapture = () => {
         if (!videoRef.current) return;
@@ -123,7 +57,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onCapture, onClose
         if (ctx) {
             ctx.drawImage(videoRef.current, 0, 0);
             const dataUrl = canvas.toDataURL('image/png');
-            // Remove prefix to get base64 data
             const base64 = dataUrl.split(',')[1];
             onCapture(base64);
         }
@@ -133,49 +66,65 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onCapture, onClose
         <div className="fixed inset-0 z-50 bg-black flex flex-col">
             {/* Header */}
             <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-center z-10">
-                <button onClick={onClose} className="bg-white/20 backdrop-blur-md p-2 rounded-full text-white">
-                    <DoodleIcon name="trash" className="w-6 h-6 rotate-45" /> {/* Using trash as close/X for now or add X icon */}
+                <button onClick={onClose} className="bg-white/20 backdrop-blur-md p-2 rounded-full text-white hover:bg-white/30 transition-colors">
+                    <svg viewBox="0 0 24 24" className="w-6 h-6 stroke-white stroke-2 fill-none">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
                 </button>
-                <div className="bg-black/50 px-3 py-1 rounded-full">
-                    <span className="text-white text-xs font-bold">Point at Sudoku</span>
-                </div>
+                {!isLoading && !error && (
+                    <div className="bg-black/50 px-3 py-1 rounded-full">
+                        <span className="text-white text-xs font-bold">Point at Sudoku</span>
+                    </div>
+                )}
                 <div className="w-10"></div>
             </div>
 
             {/* Camera View */}
-            <div className="flex-1 relative overflow-hidden bg-gray-900">
-                {error ? (
-                    <div className="flex items-center justify-center h-full text-white p-4 text-center">
-                        <p>{error}</p>
+            <div className="flex-1 relative overflow-hidden bg-gray-900 flex items-center justify-center">
+                {isLoading ? (
+                    <div className="flex flex-col items-center justify-center gap-4">
+                        <div className="relative">
+                            {/* Animated spinner */}
+                            <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <DoodleIcon name="camera" className="w-8 h-8 text-white/60" />
+                            </div>
+                        </div>
+                        <p className="text-white text-sm font-bold">Initializing Camera...</p>
+                        <p className="text-white/60 text-xs">This may take a moment</p>
+                    </div>
+                ) : error ? (
+                    <div className="flex flex-col items-center justify-center gap-4 text-white p-4 text-center max-w-sm">
+                        <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center">
+                            <svg viewBox="0 0 24 24" className="w-8 h-8 stroke-red-400 stroke-2 fill-none">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M12 8v4M12 16h.01" />
+                            </svg>
+                        </div>
+                        <p className="font-bold">Camera Error</p>
+                        <p className="text-sm text-white/80">{error}</p>
                     </div>
                 ) : (
-                    <>
-                        <video
-                            ref={videoRef}
-                            className="absolute inset-0 w-full h-full object-cover"
-                            playsInline
-                            muted
-                        />
-                        <canvas
-                            ref={canvasRef}
-                            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-                        />
-                    </>
+                    <video
+                        ref={videoRef}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        playsInline
+                        muted
+                    />
                 )}
             </div>
 
             {/* Controls */}
-            <div className="h-32 bg-black flex items-center justify-center pb-8">
-                <button
-                    onClick={handleCapture}
-                    className={`w-20 h-20 rounded-full border-[6px] flex items-center justify-center transition-all ${isBoardDetected
-                        ? 'border-green-400 bg-white/10 scale-110'
-                        : 'border-white bg-transparent'
-                        }`}
-                >
-                    <div className={`w-16 h-16 rounded-full ${isBoardDetected ? 'bg-green-400' : 'bg-white'}`} />
-                </button>
-            </div>
+            {!isLoading && !error && (
+                <div className="h-32 bg-black flex items-center justify-center pb-8">
+                    <button
+                        onClick={handleCapture}
+                        className="w-20 h-20 rounded-full border-[6px] border-white bg-transparent flex items-center justify-center transition-all active:scale-95 hover:border-green-400"
+                    >
+                        <div className="w-16 h-16 rounded-full bg-white" />
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
