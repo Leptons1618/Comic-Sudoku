@@ -46,29 +46,36 @@ export const HelpModal: React.FC<HelpModalProps> = ({ onClose }) => {
             title: 'Model & Technology',
             content: (
                 <>
-                    <h3 className="font-bold mb-2 text-lg">Digit Recognition Model</h3>
+                    <h3 className="font-bold mb-2 text-lg">🔍 Scanning Pipeline</h3>
                     <p className="mb-3 text-sm">
-                        Comic Sudoku uses a custom-trained <strong>Convolutional Neural Network (CNN)</strong> to recognize handwritten digits.
+                        Comic Sudoku runs <strong>100% offline</strong> using a two-stage scanning pipeline.
                     </p>
 
-                    <div className="bg-blue-50 border-[2px] border-black rounded-xl p-3 mb-3">
-                        <p className="text-xs font-bold mb-2">Model Architecture</p>
+                    <div className="bg-green-50 border-[2px] border-black rounded-xl p-3 mb-3">
+                        <p className="text-xs font-bold mb-2">Stage 1: Board Detection (OpenCV.js)</p>
                         <ul className="text-xs space-y-1">
-                            <li>• 3 Convolutional Blocks with Batch Normalization</li>
-                            <li>• MaxPooling & Dropout layers for robustness</li>
-                            <li>• Dense layers with 256 units</li>
-                            <li>• Trained on 28x28 grayscale images</li>
-                            <li>• Optimized for browser inference with TensorFlow.js</li>
+                            <li>• Finds the Sudoku grid in your image</li>
+                            <li>• Corrects perspective & warps to flat view</li>
+                            <li>• Slices board into 81 individual cells</li>
                         </ul>
                     </div>
 
-                    <h3 className="font-bold mb-2 text-sm">Scanning Options</h3>
-                    <p className="text-xs mb-2">
-                        <strong>Local Mode:</strong> Uses OpenCV.js + Tesseract for offline scanning
-                    </p>
-                    <p className="text-xs">
-                        <strong>Cloud Mode:</strong> Uses Google Gemini AI for enhanced accuracy (requires API key)
-                    </p>
+                    <div className="bg-blue-50 border-[2px] border-black rounded-xl p-3 mb-3">
+                        <p className="text-xs font-bold mb-2">Stage 2: Digit Recognition (TensorFlow.js)</p>
+                        <ul className="text-xs space-y-1">
+                            <li>• Custom-trained CNN (3 Conv Blocks + BatchNorm)</li>
+                            <li>• Recognizes digits 1-9 from cell images</li>
+                            <li>• 28x28 grayscale input, batch inference</li>
+                            <li>• WebGL acceleration for fast predictions</li>
+                        </ul>
+                    </div>
+
+                    <div className="p-3 bg-yellow-50 border-[2px] border-black border-dashed rounded-xl">
+                        <p className="text-xs font-bold">✨ No Internet Required</p>
+                        <p className="text-xs mt-1">
+                            All processing happens on your device. Your images never leave your browser!
+                        </p>
+                    </div>
                 </>
             ),
         },
@@ -225,8 +232,8 @@ export const HelpModal: React.FC<HelpModalProps> = ({ onClose }) => {
                         onClick={handlePrev}
                         disabled={currentPage === 0}
                         className={`px-4 py-2 rounded-xl border-[3px] border-black font-bold text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-1 active:shadow-none ${currentPage === 0
-                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-400 shadow-none'
-                                : 'bg-white hover:bg-gray-100'
+                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-400 shadow-none'
+                            : 'bg-white hover:bg-gray-100'
                             }`}
                     >
                         ← Prev
@@ -251,8 +258,8 @@ export const HelpModal: React.FC<HelpModalProps> = ({ onClose }) => {
                         onClick={handleNext}
                         disabled={currentPage === pages.length - 1}
                         className={`px-4 py-2 rounded-xl border-[3px] border-black font-bold text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-1 active:shadow-none ${currentPage === pages.length - 1
-                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-400 shadow-none'
-                                : 'bg-white hover:bg-gray-100'
+                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-400 shadow-none'
+                            : 'bg-white hover:bg-gray-100'
                             }`}
                     >
                         Next →

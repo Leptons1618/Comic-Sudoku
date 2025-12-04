@@ -9,40 +9,93 @@ declare global {
     }
 }
 
+// Track OpenCV loading state to prevent duplicate loads
+let opencvLoadingPromise: Promise<void> | null = null;
+
 /**
  * Loads OpenCV.js dynamically if not already loaded.
+ * Uses singleton pattern to prevent duplicate loading.
  */
 export const loadOpenCV = async (): Promise<void> => {
-    if (window.cv && window.cv.getBuildInformation) return;
+    // Already loaded and initialized
+    if (window.cv && window.cv.getBuildInformation) {
+        console.log("OpenCV already loaded");
+        return;
+    }
 
-    return new Promise((resolve, reject) => {
+    // Check if already loading (singleton pattern)
+    if (opencvLoadingPromise) {
+        console.log("OpenCV already loading, waiting...");
+        return opencvLoadingPromise;
+    }
+
+    // Check if script tag already exists
+    const existingScript = document.querySelector('script[src*="opencv.js"]');
+    if (existingScript) {
+        console.log("OpenCV script already in DOM, waiting for initialization...");
+        opencvLoadingPromise = new Promise((resolve, reject) => {
+            const checkInterval = setInterval(() => {
+                if (window.cv && window.cv.getBuildInformation) {
+                    clearInterval(checkInterval);
+                    resolve();
+                }
+            }, 100);
+
+            // Timeout after 15 seconds
+            setTimeout(() => {
+                clearInterval(checkInterval);
+                if (window.cv && window.cv.getBuildInformation) {
+                    resolve();
+                } else {
+                    reject(new Error("OpenCV initialization timed out"));
+                }
+            }, 15000);
+        });
+        return opencvLoadingPromise;
+    }
+
+    // Start fresh load
+    console.log("Loading OpenCV from CDN...");
+    opencvLoadingPromise = new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = 'https://docs.opencv.org/4.8.0/opencv.js';
         script.async = true;
 
         const timeout = setTimeout(() => {
+            opencvLoadingPromise = null;
             reject(new Error("OpenCV load timed out"));
-        }, 10000); // 10s timeout
+        }, 30000); // 30s timeout (OpenCV is large)
 
         script.onload = () => {
             // OpenCV.js has a runtime initialization
-            if (window.cv.getBuildInformation) {
+            if (window.cv && window.cv.getBuildInformation) {
                 clearTimeout(timeout);
+                console.log("OpenCV loaded and ready");
                 resolve();
-            } else {
+            } else if (window.cv) {
                 // Wait for runtime to be ready
                 window.cv['onRuntimeInitialized'] = () => {
                     clearTimeout(timeout);
+                    console.log("OpenCV runtime initialized");
                     resolve();
                 };
+            } else {
+                clearTimeout(timeout);
+                opencvLoadingPromise = null;
+                reject(new Error("OpenCV script loaded but cv not defined"));
             }
         };
+
         script.onerror = () => {
             clearTimeout(timeout);
-            reject(new Error("Failed to load OpenCV.js"));
-        }
+            opencvLoadingPromise = null;
+            reject(new Error("Failed to load OpenCV.js from CDN"));
+        };
+
         document.body.appendChild(script);
     });
+
+    return opencvLoadingPromise;
 };
 
 /**

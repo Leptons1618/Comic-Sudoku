@@ -14,32 +14,84 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onCapture, onClose
 
     useEffect(() => {
         let stream: MediaStream | null = null;
+        let isMounted = true;
 
         const startCamera = async () => {
             try {
-                // Load OpenCV first
-                await loadOpenCV();
+                // Load OpenCV in background (don't block camera)
+                loadOpenCV().catch(err => console.warn("OpenCV preload failed:", err));
 
-                // Request camera access
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
+                // Check if getUserMedia is supported
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("Camera API not supported. Please use a modern browser.");
+                }
 
-                if (videoRef.current) {
+                // Try simple constraints first (works better on desktop)
+                let cameraConstraints: MediaStreamConstraints = {
+                    video: true
+                };
+
+                // On mobile, prefer rear camera
+                const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+                if (isMobile) {
+                    cameraConstraints = {
+                        video: { facingMode: 'environment' }
+                    };
+                }
+
+                const cameraPromise = navigator.mediaDevices.getUserMedia(cameraConstraints);
+
+                const timeoutPromise = new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error("Camera access timed out. Please refresh and try again.")), 15000)
+                );
+
+                stream = await Promise.race([cameraPromise, timeoutPromise]);
+
+                if (videoRef.current && isMounted) {
                     videoRef.current.srcObject = stream;
                     await videoRef.current.play();
                     setIsLoading(false);
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Camera error:", err);
-                setError("Could not access camera. Ensure you are on HTTPS/localhost and have granted permissions.");
-                setIsLoading(false);
+
+                // Provide more specific error messages
+                let errorMessage = "Could not access camera.";
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    errorMessage = "Camera permission denied. Please allow camera access and refresh.";
+                } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                    errorMessage = "No camera found on this device.";
+                } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                    errorMessage = "Camera is in use by another app. Please close other apps and try again.";
+                } else if (err.name === 'OverconstrainedError') {
+                    errorMessage = "Camera doesn't support requested settings. Trying with defaults...";
+                    // Retry with basic constraints
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        if (videoRef.current && isMounted) {
+                            videoRef.current.srcObject = stream;
+                            await videoRef.current.play();
+                            setIsLoading(false);
+                            return;
+                        }
+                    } catch (retryErr) {
+                        errorMessage = "Could not access camera with any settings.";
+                    }
+                } else if (err.message) {
+                    errorMessage = err.message;
+                }
+
+                if (isMounted) {
+                    setError(errorMessage);
+                    setIsLoading(false);
+                }
             }
         };
 
         startCamera();
 
         return () => {
+            isMounted = false;
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
             }
@@ -81,7 +133,16 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onCapture, onClose
 
             {/* Camera View */}
             <div className="flex-1 relative overflow-hidden bg-gray-900 flex items-center justify-center">
-                {isLoading ? (
+                {/* Always render video element so ref is available, but hide during loading/error */}
+                <video
+                    ref={videoRef}
+                    className={`absolute inset-0 w-full h-full object-cover ${isLoading || error ? 'hidden' : ''}`}
+                    playsInline
+                    muted
+                    autoPlay
+                />
+
+                {isLoading && (
                     <div className="flex flex-col items-center justify-center gap-4">
                         <div className="relative">
                             {/* Animated spinner */}
@@ -93,7 +154,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onCapture, onClose
                         <p className="text-white text-sm font-bold">Initializing Camera...</p>
                         <p className="text-white/60 text-xs">This may take a moment</p>
                     </div>
-                ) : error ? (
+                )}
+
+                {error && (
                     <div className="flex flex-col items-center justify-center gap-4 text-white p-4 text-center max-w-sm">
                         <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center">
                             <svg viewBox="0 0 24 24" className="w-8 h-8 stroke-red-400 stroke-2 fill-none">
@@ -104,13 +167,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onCapture, onClose
                         <p className="font-bold">Camera Error</p>
                         <p className="text-sm text-white/80">{error}</p>
                     </div>
-                ) : (
-                    <video
-                        ref={videoRef}
-                        className="absolute inset-0 w-full h-full object-cover"
-                        playsInline
-                        muted
-                    />
                 )}
             </div>
 
