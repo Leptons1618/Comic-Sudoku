@@ -8,13 +8,41 @@ let model: tf.GraphModel | null = null;
 export const loadDigitModel = async (): Promise<void> => {
     if (model) return;
 
+    console.log('[TF] Starting model load...');
+    const startTime = performance.now();
+
     try {
-        // Load the trained model from public/models/tfjs_model/
-        model = await tf.loadGraphModel('/models/tfjs_model/model.json');
-        console.log('Digit recognition model loaded');
+        // Set backend explicitly
+        await tf.setBackend('webgl');
+        await tf.ready();
+        console.log(`[TF] Backend: ${tf.getBackend()}`);
+
+        // Load with timeout
+        const modelPromise = tf.loadGraphModel('/models/tfjs_model/model.json');
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Model loading timeout (30s)')), 30000)
+        );
+
+        model = await Promise.race([modelPromise, timeoutPromise]) as tf.GraphModel;
+
+        const loadTime = performance.now() - startTime;
+        console.log(`[TF] Model loaded successfully in ${loadTime.toFixed(0)}ms`);
+        console.log(`[TF] Model inputs:`, model.inputs.map(i => ({ name: i.name, shape: i.shape })));
+        console.log(`[TF] Model outputs:`, model.outputs.map(o => ({ name: o.name, shape: o.shape })));
     } catch (error) {
-        console.error('Failed to load digit model:', error);
-        throw error;
+        console.error('[TF] Failed to load digit model:', error);
+
+        // Try CPU backend as fallback
+        try {
+            console.log('[TF] Attempting CPU backend fallback...');
+            await tf.setBackend('cpu');
+            await tf.ready();
+            model = await tf.loadGraphModel('/models/tfjs_model/model.json');
+            console.log('[TF] Model loaded with CPU backend');
+        } catch (fallbackError) {
+            console.error('[TF] CPU fallback also failed:', fallbackError);
+            throw new Error(`Failed to load model: ${error.message}`);
+        }
     }
 };
 
@@ -32,13 +60,10 @@ function preprocessCellImage(canvas: HTMLCanvasElement): tf.Tensor {
         // Normalize to [0, 1]
         tensor = tensor.div(255.0);
 
-        // Invert if needed (model expects white digits on black background)
-        // Check if image is mostly white (Sudoku has black digits on white)
-        const mean = tensor.mean().dataSync()[0];
-        if (mean > 0.5) {
-            // Invert: white background -> black background
-            tensor = tf.scalar(1).sub(tensor);
-        }
+        // CRITICAL: Sudoku has BLACK digits on WHITE background
+        // Training data has WHITE digits on BLACK background
+        // So we MUST invert: white background -> black background
+        tensor = tf.scalar(1).sub(tensor);
 
         // Add batch dimension
         tensor = tensor.expandDims(0);
@@ -92,35 +117,63 @@ export const recognizeDigitsBatch = async (cellCanvases: HTMLCanvasElement[]): P
 
     if (cellCanvases.length === 0) return [];
 
-    return tf.tidy(() => {
-        // Preprocess all images
-        const tensors = cellCanvases.map(canvas => preprocessCellImage(canvas));
+    console.log(`[TF] Processing batch of ${cellCanvases.length} cells`);
+    const startTime = performance.now();
 
-        // Concatenate into a single batch
-        const batchTensor = tf.concat(tensors);
+    try {
+        // Process with timeout
+        const predictionPromise = tf.tidy(() => {
+            // Preprocess all images
+            const tensors = cellCanvases.map(canvas => preprocessCellImage(canvas));
 
-        // Run batch inference
-        const predictions = model!.predict(batchTensor) as tf.Tensor;
-        const probabilities = predictions.arraySync() as number[][];
+            // Concatenate into a single batch
+            const batchTensor = tf.concat(tensors);
 
-        // Extract results
-        return probabilities.map(probs => {
-            let maxProb = 0;
-            let predictedDigit = 0;
+            // Run batch inference
+            const predictions = model!.predict(batchTensor) as tf.Tensor;
+            const probabilities = predictions.arraySync() as number[][];
 
-            for (let i = 1; i <= 9; i++) {
-                if (probs[i] > maxProb) {
-                    maxProb = probs[i];
-                    predictedDigit = i;
+            // Extract results
+            return probabilities.map((probs, idx) => {
+                let maxProb = -1;
+                let predictedClass = 0;
+
+                // Find class with highest probability (0-9)
+                for (let i = 0; i < probs.length; i++) {
+                    if (probs[i] > maxProb) {
+                        maxProb = probs[i];
+                        predictedClass = i;
+                    }
                 }
-            }
 
-            return {
-                digit: predictedDigit,
-                confidence: maxProb
-            };
+                // If predicted class is 0 or confidence is too low, treat as empty
+                const digit = (predictedClass === 0 || maxProb < 0.3) ? 0 : predictedClass;
+
+                if (idx < 5) { // Log first 5 for debugging
+                    console.log(`[TF] Cell ${idx}: class=${predictedClass}, conf=${maxProb.toFixed(3)}, digit=${digit}`);
+                }
+
+                return {
+                    digit,
+                    confidence: maxProb
+                };
+            });
         });
-    });
+
+        const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Batch prediction timeout (60s)')), 60000)
+        );
+
+        const results = await Promise.race([predictionPromise, timeoutPromise]);
+
+        const processingTime = performance.now() - startTime;
+        console.log(`[TF] Batch processed in ${processingTime.toFixed(0)}ms (${(processingTime / cellCanvases.length).toFixed(1)}ms per cell)`);
+
+        return results;
+    } catch (error) {
+        console.error('[TF] Batch recognition failed:', error);
+        throw error;
+    }
 };
 
 /**

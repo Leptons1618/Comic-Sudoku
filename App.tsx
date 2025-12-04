@@ -6,7 +6,7 @@ import { NumberKeyboard } from './components/NumberKeyboard';
 import { DoodleIcon } from './components/DoodleIcon';
 import { CameraScanner } from './components/CameraScanner';
 import { HelpModal } from './components/HelpModal';
-import { DebugVisualization } from './components/DebugVisualization';
+import { AboutModal } from './components/AboutModal'; // Assuming AboutModal is imported here or needs to be
 
 import { createEmptyBoard, solveSudoku, generateSudoku } from './services/sudokuLogic';
 import { extractSudokuFromImage, setCustomApiKey } from './services/geminiService';
@@ -89,7 +89,7 @@ const App: React.FC = () => {
     setApiKey(tempApiKey);
     setCustomApiKey(tempApiKey);
     localStorage.setItem('comic_sudoku_api_key', tempApiKey);
-    setSaveMessage("Saved!");
+    setSaveMessage("Settings Saved!");
     playSound('success');
     setTimeout(() => setSaveMessage(""), 2000);
   };
@@ -140,9 +140,8 @@ const App: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    playSound('click');
     setLoading(true);
-    setLoadingText("Scanning Puzzle...");
+    setLoadingText("Processing Image...");
     setStatusMessage("");
 
     try {
@@ -172,36 +171,29 @@ const App: React.FC = () => {
   const processImage = async (base64Data: string) => {
     try {
       let extractedGrid: SudokuGrid;
-      let debug: any = null;
 
       if (useLocalModel) {
         setLoadingText("Scanning locally...");
-        const result = await extractSudokuFromImageLocal(base64Data, showDebugVisualization);
+        const result = await extractSudokuFromImageLocal(base64Data, false); // Pass false for debug visualization
         extractedGrid = result.grid;
-        debug = result.debugData;
       } else {
         extractedGrid = await extractSudokuFromImage(base64Data);
       }
 
-      if (showDebugVisualization && debug) {
-        setDebugData(debug);
-        setLoading(false);
-        // Don't auto-apply grid, wait for user to click "Use This Grid"
-      } else {
-        // Apply grid immediately if debug is off
-        setGridSize(9);
-        setGrid(extractedGrid);
-        setInitialGrid(extractedGrid);
-        setSolution(null);
-        setHintCells([]);
-        setErrorCells([]);
-        setAnimatingHint(null);
-        playSound('success');
-        setLoading(false);
-      }
-    } catch (error) {
+      // Apply grid immediately
+      setGridSize(9);
+      setGrid(extractedGrid);
+      setInitialGrid(extractedGrid);
+      setSolution(null);
+      setHintCells([]);
+      setErrorCells([]);
+      setAnimatingHint(null);
+      playSound('success');
+      setLoading(false);
+    } catch (error: any) {
       console.error(error);
-      showStatus("Could not identify a Sudoku. Try a clearer image.");
+      const msg = error.message || "Unknown error";
+      showStatus(`Error: ${msg}`);
       playSound('error');
       setLoading(false);
     }
@@ -616,91 +608,17 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex justify-between items-center border-b-2 border-gray-200 pb-4">
-              <div>
-                <span className="font-bold text-lg block">Enable Gemini Cloud AI</span>
-                <span className="text-xs text-gray-500">Use Google's AI for better accuracy (Requires API Key)</span>
-              </div>
-              <button
-                onClick={toggleLocalModel}
-                className={`w-14 h-8 rounded-full border-[3px] border-black flex items-center px-1 transition-colors ${!useLocalModel ? 'bg-green-400' : 'bg-gray-300'}`}
-              >
-                <div className={`w-5 h-5 bg-white border-[2px] border-black rounded-full transition-transform ${!useLocalModel ? 'translate-x-6' : 'translate-x-0'}`} />
-              </button>
-            </div>
-
-            {!useLocalModel && (
-              <div className="flex flex-col gap-2 animate-fade-in">
-                <label className="font-bold text-lg">Gemini API Key</label>
-                <p className="text-xs text-gray-500">Enter your API key to use the scanning feature. It will be saved on your device.</p>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={tempApiKey}
-                    onChange={handleApiKeyChange}
-                    placeholder="AIzaSy..."
-                    className="flex-1 p-2 border-[3px] border-black rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
-                  />
-                  <button onClick={saveSettings} className="bg-blue-400 text-white font-bold px-4 py-2 rounded-xl border-[3px] border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-1 active:shadow-none flex items-center justify-center">
-                    <DoodleIcon name="save" className="w-6 h-6" />
-                  </button>
-                </div>
-                {saveMessage && <p className="text-green-600 font-bold text-center">{saveMessage}</p>}
-              </div>
-            )}
-
-            {useLocalModel && (
-              <div className="p-4 bg-blue-50 border-[3px] border-black border-dashed rounded-xl">
-                <p className="text-sm font-bold text-center">Using Local Device Mode</p>
-                <p className="text-xs text-center text-gray-600 mt-1">Scanning runs offline on your device. No API key required.</p>
-              </div>
-            )}
-
-            <div className="flex justify-between items-center border-b-2 border-gray-200 pb-4">
-              <div>
-                <span className="font-bold text-lg block">Debug Visualization</span>
-                <span className="text-xs text-gray-500">Show processed images after scanning</span>
-              </div>
-              <button
-                onClick={() => setShowDebugVisualization(!showDebugVisualization)}
-                className={`w-14 h-8 rounded-full border-[3px] border-black flex items-center px-1 transition-colors ${showDebugVisualization ? 'bg-purple-400' : 'bg-gray-300'}`}
-              >
-                <div className={`w-5 h-5 bg-white border-[2px] border-black rounded-full transition-transform ${showDebugVisualization ? 'translate-x-6' : 'translate-x-0'}`} />
-              </button>
-            </div>
-
-            <div className="pt-4 border-t-2 border-gray-200">
-              <p className="text-xs text-gray-400 text-center">
-                Debug Mode Active
+            <div className="p-4 bg-blue-50 border-[3px] border-black border-dashed rounded-xl">
+              <p className="text-sm font-bold text-center">Local Mode Active</p>
+              <p className="text-xs text-center text-gray-600 mt-1">
+                Scanning runs entirely offline on your device using our custom TensorFlow.js model.
               </p>
             </div>
           </div>
         </Modal>
       )}
 
-      {/* Debug Visualization */}
-      {debugData && (
-        <DebugVisualization
-          debugData={debugData}
-          onClose={() => setDebugData(null)}
-          onExtract={() => {
-            if (debugData.extractedGrid) {
-              setGridSize(9);
-              setGrid(debugData.extractedGrid);
-              setInitialGrid(debugData.extractedGrid);
-              setSolution(null);
-              setHintCells([]);
-              setErrorCells([]);
-              setAnimatingHint(null);
-              setDebugData(null);
-              playSound('success');
-              showStatus('Grid extracted successfully!');
-            }
-          }}
-        />
-      )}
-
-    </div>
+    </div >
   );
 };
 

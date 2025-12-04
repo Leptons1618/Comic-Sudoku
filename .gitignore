@@ -1,28 +1,34 @@
-# Logs
-logs
-*.log
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Testing
+coverage
+
+# Production
+build
+dist
+
+# Misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-tfjs-env/
-tfjs-convert-env/
+# Python / Training
+.venv
+.venv_train
+__pycache__/
+*.py[cod]
+*$py.class
+scripts/train/data
+tests/sudoku_dataset
+saved_model/
+saved_model_retrained/
 public/test_images/
