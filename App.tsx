@@ -9,7 +9,6 @@ import { HelpModal } from './components/HelpModal';
 import { AboutModal } from './components/AboutModal'; // Assuming AboutModal is imported here or needs to be
 
 import { createEmptyBoard, solveSudoku, generateSudoku } from './services/sudokuLogic';
-import { extractSudokuFromImage, setCustomApiKey } from './services/geminiService';
 import { extractSudokuFromImageLocal } from './services/localMLService';
 import { SudokuGrid, AppMode, GridSize, CellPosition } from './types';
 import { playSound, setMuted } from './services/audioService';
@@ -35,11 +34,7 @@ const App: React.FC = () => {
 
   // Settings State
   const [isMutedState, setIsMutedState] = useState(false);
-  const [useLocalModel, setUseLocalModel] = useState(true);
   const [showDebugVisualization, setShowDebugVisualization] = useState(false);
-  const [apiKey, setApiKey] = useState("");
-  const [tempApiKey, setTempApiKey] = useState("");
-  const [saveMessage, setSaveMessage] = useState("");
   const [debugData, setDebugData] = useState<any>(null);
 
   const [selectedCell, setSelectedCell] = useState<CellPosition | null>(null);
@@ -52,16 +47,8 @@ const App: React.FC = () => {
   // Load Settings on Mount
   useEffect(() => {
     const savedMuted = localStorage.getItem('comic_sudoku_muted') === 'true';
-    const savedLocalModel = localStorage.getItem('comic_sudoku_local_model') === 'true';
-    const savedKey = localStorage.getItem('comic_sudoku_api_key') || "";
-
     setIsMutedState(savedMuted);
     setMuted(savedMuted);
-    setUseLocalModel(savedLocalModel);
-
-    setApiKey(savedKey);
-    setTempApiKey(savedKey);
-    if (savedKey) setCustomApiKey(savedKey);
   }, []);
 
   // Save Settings Handlers
@@ -73,26 +60,7 @@ const App: React.FC = () => {
     playSound('click');
   };
 
-  const toggleLocalModel = () => {
-    const newVal = !useLocalModel;
-    setUseLocalModel(newVal);
-    localStorage.setItem('comic_sudoku_local_model', String(newVal));
-    playSound('click');
-  };
 
-  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTempApiKey(e.target.value);
-    setSaveMessage("");
-  };
-
-  const saveSettings = () => {
-    setApiKey(tempApiKey);
-    setCustomApiKey(tempApiKey);
-    localStorage.setItem('comic_sudoku_api_key', tempApiKey);
-    setSaveMessage("Settings Saved!");
-    playSound('success');
-    setTimeout(() => setSaveMessage(""), 2000);
-  };
 
   // Reset functionality
   const resetBoard = (size: GridSize = 9) => {
@@ -170,15 +138,9 @@ const App: React.FC = () => {
 
   const processImage = async (base64Data: string) => {
     try {
-      let extractedGrid: SudokuGrid;
-
-      if (useLocalModel) {
-        setLoadingText("Scanning locally...");
-        const result = await extractSudokuFromImageLocal(base64Data, false); // Pass false for debug visualization
-        extractedGrid = result.grid;
-      } else {
-        extractedGrid = await extractSudokuFromImage(base64Data);
-      }
+      setLoadingText("Scanning locally...");
+      const result = await extractSudokuFromImageLocal(base64Data, false); // Pass false for debug visualization
+      const extractedGrid: SudokuGrid = result.grid;
 
       // Apply grid immediately
       setGridSize(9);
@@ -588,7 +550,7 @@ const App: React.FC = () => {
         <Modal title="About" onClose={() => setShowAbout(false)}>
           <p className="mb-4 font-bold text-center text-xl">Comic Sudoku Solver</p>
           <p className="mb-4 text-sm text-justify">
-            A fun, doodle-themed application powered by <strong>Google Gemini AI</strong>.
+            A fun, doodle-themed application with local AI-powered digit recognition.
             Designed to help you solve, play, and enjoy Sudoku puzzles on the go.
           </p>
           <p className="text-xs text-gray-500 text-center mt-8">Version 1.2.0</p>
