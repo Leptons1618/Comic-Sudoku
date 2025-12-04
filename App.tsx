@@ -35,7 +35,7 @@ const App: React.FC = () => {
 
   // Settings State
   const [isMutedState, setIsMutedState] = useState(false);
-  const [useLocalModel, setUseLocalModel] = useState(false);
+  const [useLocalModel, setUseLocalModel] = useState(true);
   const [showDebugVisualization, setShowDebugVisualization] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [tempApiKey, setTempApiKey] = useState("");
